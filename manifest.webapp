@@ -1,13 +1,22 @@
-{
-  "name": "Runenwandler",
-  "description": "Wandelt normale Buchstaben in Runen",
-  "launch_path": "/runen.html",
-    "icons": {
-    "128": "/runen.png"
-  },
-  "developer": {
-    "name": "Hermann",
-    "url": "http://your-homepage-here.org"
-  },
-  "default_locale": "de"
+﻿{
+	"name": "Audio analyser",
+	"description": "asdf",
+	"version": "1.0",
+	"launch_path": "/test/",
+	"orientation": ["portrait", "landscape"],
+	"icons": {
+		"16": "/test/icon-16.png",
+		"32": "/test/icon-32.png",
+		"128": "/test/icon-128.png",
+		"256": "/test/icon-256.png"
+	},
+	"developer": {
+		"name": "",
+		"url": ""
+	},
+	"default_locale": "en",
+	"permissions": {
+	},
+	"appcache_path": "/test/offline.appcache",
+	"fullscreen": "true"
 }
