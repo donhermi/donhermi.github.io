@@ -1,0 +1,13 @@
+{
+  "name": "Runenwandler",
+  "description": "Wandelt normale Buchstaben in Runen",
+  "launch_path": "/runen.html",
+    "icons": {
+    "128": "/runen.png"
+  },
+  "developer": {
+    "name": "Hermann",
+    "url": "http://your-homepage-here.org"
+  },
+  "default_locale": "de"
+}

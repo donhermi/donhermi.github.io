@@ -1,0 +1,184 @@
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+    <body>
+
+        
+        <p>
+<SCRIPT LANGUAGE=javascript>/**
+ *  by Runenleser
+ *  This script translates an input of arab german letters to unicode-runes
+ *  of the Elder Futhark.
+ *  
+ *  
+ *  
+ */
+var INPUT_CHARACTERS_VISIBLE=false;  /* true if the inputted valid characters should be visible */
+ 
+/* Objects with ch and rune properies */
+/**
+ *        Letter    Rune
+ */
+var validRunes=[
+        {ch:'f',  rune:String.fromCharCode(0x16A0)  },
+        {ch:'F',  rune:String.fromCharCode(0x16A0)  },
+        {ch:'u',  rune:String.fromCharCode(0x16A2)  },
+        {ch:'U',  rune:String.fromCharCode(0x16A2)  },
+        {ch:'th',  rune:String.fromCharCode(0x16A6)},
+        {ch:'Th',  rune:String.fromCharCode(0x16A6)},
+        {ch:'TH',  rune:String.fromCharCode(0x16A6)},
+        {ch:'a',  rune:String.fromCharCode(0x16A8)   },
+        {ch:'A',  rune:String.fromCharCode(0x16A8)   },
+        {ch:'r',  rune:String.fromCharCode(0x16B1)  },
+        {ch:'R',  rune:String.fromCharCode(0x16B1)  },
+        {ch:'c',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'C',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'k',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'K',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'Q',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'q',  rune:String.fromCharCode(0x16B2)   },
+        {ch:'qu',  rune:String.fromCharCode(0x16B2) + String.fromCharCode(0x16B9)},
+        {ch:'Qu',  rune:String.fromCharCode(0x16B2) + String.fromCharCode(0x16B9)},
+        {ch:'QU',  rune:String.fromCharCode(0x16B2) + String.fromCharCode(0x16B9)},        
+        {ch:'x',  rune:String.fromCharCode(0x16B2) + String.fromCharCode(0x16CA)},
+        {ch:'X',  rune:String.fromCharCode(0x16B2) + String.fromCharCode(0x16CA)},
+        {ch:'g',  rune:String.fromCharCode(0x16B7)  },
+        {ch:'G',  rune:String.fromCharCode(0x16B7)  },
+        {ch:'v',  rune:String.fromCharCode(0x16A0)   },
+        {ch:'V',  rune:String.fromCharCode(0x16A0)   },
+        {ch:'w',  rune:String.fromCharCode(0x16B9)   },
+        {ch:'W',  rune:String.fromCharCode(0x16B9)   },
+        {ch:'h',  rune:String.fromCharCode(0x16BA) },
+        {ch:'H',  rune:String.fromCharCode(0x16BA) },
+        {ch:'n',  rune:String.fromCharCode(0x16BE) },
+        {ch:'N',  rune:String.fromCharCode(0x16BE) },
+        {ch:'i',  rune:String.fromCharCode(0x16C1)  },
+        {ch:'I',  rune:String.fromCharCode(0x16C1)  },
+        {ch:'j',  rune:String.fromCharCode(0x16C3)  },
+        {ch:'J',  rune:String.fromCharCode(0x16C3)  },
+        {ch:'y',  rune:String.fromCharCode(0x16A2) + String.fromCharCode(0x16D6)  },
+        {ch:'Y',  rune:String.fromCharCode(0x16A2) + String.fromCharCode(0x16D6)  },
+        {ch:'ei',  rune:String.fromCharCode(0x16C7)  },
+        {ch:'Ei',  rune:String.fromCharCode(0x16C7)  },
+        {ch:'EI',  rune:String.fromCharCode(0x16C7)  },
+        {ch:'p',  rune:String.fromCharCode(0x16C8) },
+        {ch:'P',  rune:String.fromCharCode(0x16C8) },
+        {ch:'z',  rune:String.fromCharCode(0x16C9)   },
+        {ch:'Z',  rune:String.fromCharCode(0x16C9)   },
+        {ch:'s',  rune:String.fromCharCode(0x16CA)  },
+        {ch:'S',  rune:String.fromCharCode(0x16CA)  },
+        {ch:'t',  rune:String.fromCharCode(0x16CF)   },
+        {ch:'T',  rune:String.fromCharCode(0x16CF)   },
+        {ch:'b',  rune:String.fromCharCode(0x16D2) },
+        {ch:'B',  rune:String.fromCharCode(0x16D2) },
+        {ch:'e',  rune:String.fromCharCode(0x16D6)   },
+        {ch:'E',  rune:String.fromCharCode(0x16D6)   },
+        {ch:'m',  rune:String.fromCharCode(0x16D7)  },
+        {ch:'M',  rune:String.fromCharCode(0x16D7)  },
+        {ch:'l',  rune:String.fromCharCode(0x16DA)   },
+        {ch:'L',  rune:String.fromCharCode(0x16DA)   },
+        {ch:'ng',  rune:String.fromCharCode(0x16DC)  },
+        {ch:'Ng',  rune:String.fromCharCode(0x16DC)  },
+        {ch:'Ph',  rune:String.fromCharCode(0x16A0)  },
+        {ch:'PH',  rune:String.fromCharCode(0x16A0)  },
+        {ch:'ph',  rune:String.fromCharCode(0x16A0)  },
+        {ch:'d',  rune:String.fromCharCode(0x16DE)   },
+        {ch:'D',  rune:String.fromCharCode(0x16DE)   },
+        {ch:'o',  rune:String.fromCharCode(0x16DF)  },
+        {ch:'O',  rune:String.fromCharCode(0x16DF)  },
+        {ch:'ä',  rune:String.fromCharCode(0x16A8) + String.fromCharCode(0x16D6)  },
+        {ch:'Ä',  rune:String.fromCharCode(0x16A8) + String.fromCharCode(0x16D6)  },
+        {ch:'ö',  rune:String.fromCharCode(0x16DF) + String.fromCharCode(0x16D6)  },
+        {ch:'Ö',  rune:String.fromCharCode(0x16DF) + String.fromCharCode(0x16D6)  },
+        {ch:'ü',  rune:String.fromCharCode(0x16A2) + String.fromCharCode(0x16D6)  },
+        {ch:'Ü',  rune:String.fromCharCode(0x16A2) + String.fromCharCode(0x16D6)  },
+        {ch:'Sch',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)  },
+        {ch:'SCH',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)},
+        {ch:'sch',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)},
+{ch:'ß',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16CA)  },
+{ch:'  ',  rune:'<br>'  },
+        ];
+
+var longRunes=[];    /* Runes represented with more than one character */
+var runes=new Array();  /* Inputted letters */
+
+function generateLongRunes() {
+  for (var i=0;i<validRunes.length;i++) {
+    if (validRunes[i].ch.length>1) {
+      longRunes[longRunes.length]=validRunes[i].ch;
+    }
+  }
+}
+function isValidRune(rune) {    /* Check inputted rune against the validRunes array */
+    for (var i=0;i<validRunes.length;i++) {
+        if (validRunes[i].ch==rune) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function completePrevRune(ch) {
+    var longRunes=["th","Th", "TH", "ei", "Ei", "EI", "Qu", "qu", "QU", "ng", "Ph", "ph", "PH", "  ", "Sch", "SCH", "sch"];    /* Runes represented with more than one character (could be generated by reading the validRunes array) */
+    for (var i=0;i<longRunes.length;i++) {
+        if (runes[runes.length-1]+ch == longRunes[i].slice(0,(runes[runes.length-1]+ch).length)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function addRune(ch) {
+    if (completePrevRune(ch)){    /* Check if this character will complete the currently last rune */
+        runes[runes.length-1]+=ch;
+    }else {
+        runes[runes.length]=ch;
+    }
+}
+
+function setRunes() {    /* Create the runes array */
+    runes=[];
+    for (var i = 0 ; i < document.getElementById("txtInput").value.length ; i++) {
+        addRune(document.getElementById("txtInput").value.charAt(i));
+    }
+}
+
+function checkInput() {
+    var key=event.keyCode;    /* IE */
+    if (key==13) {
+        translate();
+    }
+}
+
+function translate() {
+    document.getElementById("rune").innerHTML="";
+    setRunes();
+    for (var i=0;i<runes.length;i++) {
+  var bla=0;
+        for (var j=0;j<validRunes.length;j++) {
+            if (validRunes[j].ch==runes[i]) {
+        document.getElementById("rune").innerHTML+=validRunes[j].rune;
+        var bla=1;
+            }
+  }
+  if (bla==0) {
+    document.getElementById("rune").innerHTML+=runes[i];
+  }
+    }
+    }</SCRIPT>  
+	<font face="Verdana"><b>Woerter:</b></font><br />
+  <textarea cols="50" id="txtInput" onkeydown="checkInput();" rows="10"></textarea> 
+  <input name="Button" onclick="translate();" type="button" value="Uebersetzen" /></p>
+<p>
+  <font face="Verdana"><b>Runen:</b></font></p>
+<p id = "rune"><b>Hier stehen die Runen nach dem Uebersetzen</b></p>        
+        
+    </body>
+</html>
