@@ -11,7 +11,16 @@ and open the template in the editor.
     <body>
 
         
-        <p>
+
+                <font face="Verdana"><b>Woerter:</b></font><br />
+                <textarea cols="50" id="txtInput" onkeydown="checkInput();" rows="10"></textarea> 
+                <input name="Button" onclick="translate2()" type="button" value="Uebersetzen" />
+
+              <p>
+                <font face="Verdana"><b>Runen:</b></font></p>
+              <p id = "rune"><b>Hier stehen die Runen nach dem Uebersetzen</b></p>        
+                   
+
 <SCRIPT LANGUAGE=javascript>/**
  *  by Runenleser
  *  This script translates an input of german letters to unicode-runes
@@ -102,8 +111,8 @@ var validRunes=[
         {ch:'Sch',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)  },
         {ch:'SCH',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)},
         {ch:'sch',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16BA)},
-{ch:'ß',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16CA)  },
-{ch:'  ',  rune:'<br>'  },
+        {ch:'ß',  rune:String.fromCharCode(0x16CA) + String.fromCharCode(0x16CA)  },
+        {ch:'  ',  rune:'<br>'  },
         ];
 
 var longRunes=[];    /* Runes represented with more than one character */
@@ -157,7 +166,8 @@ function checkInput() {
     }
 }
 
-function translate() {
+
+function translate2() {
     document.getElementById("rune").innerHTML="";
     setRunes();
     for (var i=0;i<runes.length;i++) {
@@ -172,13 +182,10 @@ function translate() {
     document.getElementById("rune").innerHTML+=runes[i];
   }
     }
-    }</SCRIPT>  
-	<font face="Verdana"><b>Woerter:</b></font><br />
-  <textarea cols="50" id="txtInput" onkeydown="checkInput();" rows="10"></textarea> 
-  <input name="Button" onclick="translate();" type="button" value="Uebersetzen" /></p>
-<p>
-  <font face="Verdana"><b>Runen:</b></font></p>
-<p id = "rune"><b>Hier stehen die Runen nach dem Uebersetzen</b></p>        
-        
+    }
+
+
+    </SCRIPT>  
+   
     </body>
 </html>
