@@ -184,6 +184,8 @@
           document.getElementById('myDivTest').innerHTML = 'Group: ' + result.classIndex + ', '+ 
               Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
                     document.getElementById('nurErgebnis').innerHTML = result.classIndex
+          //Hier wird der errechnete Wert an den WEbsocket weitergegeben
+          doit(result.classIndex)
                                                                                                     
                                                                                                     
           // console.log(result); 
