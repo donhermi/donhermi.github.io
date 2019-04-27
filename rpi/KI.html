@@ -158,7 +158,7 @@ stopVideo = async function() {
 getVideo = async function() {  
   const myCamera = await document.getElementById('myCheck').value
                                                                                      
-  navigator.getMedia = navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  navigator.getMedia = navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia ;
   navigator.getMedia({video: { facingMode: myCamera }, audio: false},
                      
     function(stream) {
