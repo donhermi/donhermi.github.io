@@ -1,0 +1,270 @@
+
+<!DOCTYPE HTML>
+<html>
+    <head>
+    <title>Simple Live Display</title>
+
+
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.3"> </script> 
+
+
+
+    <!-- Load MobileNet -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@0.2.2"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script> 
+    <!-- Load KNN Classifier -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@0.2.2"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier"></script> 
+
+    <script>
+
+
+
+
+
+
+        var ws;
+        var wsUri = "ws:";
+        var loc = window.location;
+        console.log(loc);
+        if (loc.protocol === "https:") { wsUri = "wss:"; }
+        // This needs to point to the web socket in the Node-RED flow
+        // ... in this case it's ws/simple
+        wsUri += "//" + loc.host + loc.pathname.replace("simple","ws/simple");
+
+
+        function wsConnect() {
+            console.log("connect",wsUri);
+            ws = new WebSocket(wsUri);
+            //var line = "";    // either uncomment this for a building list of messages
+            ws.onmessage = function(msg) {
+                var line = "";  // or uncomment this to overwrite the existing message
+                // parse the incoming message as a JSON object
+                var data = msg.data;
+                //console.log(data);
+                // build the output from the topic and payload parts of the object
+                line += "<p>"+data+"</p>";
+                // replace the messages div with the new "line"
+                document.getElementById('messages').innerHTML = line;
+                //ws.send(JSON.stringify({data:data}));
+            }
+            ws.onopen = function() {
+                // update the status div with the connection status
+                document.getElementById('status').innerHTML = "connected";
+                //ws.send("Open for data");
+                console.log("connected");
+            }
+            ws.onclose = function() {
+                // update the status div with the connection status
+                document.getElementById('status').innerHTML = "not connected";
+                // in case of lost connection tries to reconnect every 3 secs
+                setTimeout(wsConnect,3000);
+            }
+        }
+        
+        function doit(m) {
+            if (ws) { ws.send(m); }
+        }
+    </script>
+    </head>
+    <body onload="wsConnect();" onunload="ws.disconnect();">
+
+      
+
+        <input value="Load MobileNet 1000 object model" onclick="{
+          myInit()
+        }" type="button"><br><br>
+
+
+
+        <select size="1" id="myCheck">
+        <option value="environment">Rear Mobile Camera
+        </option><option value="user">Front Mobile Camera
+        </option></select>
+
+        <input id="myButtonActivateWebCam" value="Activate WebCam" onclick="{getVideo()}" type="button"> 
+        <input id="myButtonActivateWebCam" value="Stop WebCam" onclick="{ stopVideo()  }" type="button"> <br><br>
+
+        Train a few items with a group number and a text label<br>
+        <input value="Train" onclick="{myNewTrain()}" type="button"> 
+        <input value="0" size="3" id="myClassNumber" onchange="{
+          myTextChange()                                                       
+        }" type="number">
+        <input id="myClassText" placeholder="Label for this trained class: example Cell Phone" value="Cup" type="text"><br>
+
+        <input id="SaveModel" value="SaveModel" onclick="{ mysaveModel()  }" type="button"> <br><br>
+
+        Analyse every <input id="myInterval" value="3000" size="5" type="number"> milliseconds<br>
+        <input id="myButtonAuto" value="Auto" onclick="{takeAuto()}" type="button"> 
+        <input value="Stop Auto" onclick="{myStopAuto()}" type="button"><br><br>
+
+        <video id="myVideo" style="border: 1px solid #ddd;" width="300" height="200"></video>
+        <canvas id="my32x32CanvasA" style="border: 1px solid #ddd; background-color:lightgray;" width="300" height="200"></canvas> <br><br>
+
+
+        <div id="myDivLoss">...</div><br>
+        <div id="myDivTest">...</div><br>
+        <div id="nurErgebnis">...</div><br>
+
+
+        <input value="Show data for above Group" onclick="{
+        console.log('classifier.getNumClasses()')
+        console.log(classifier.getNumClasses())
+        const myOut = classifier.getClassifierDataset()
+        console.log('myOut['+parseInt(document.getElementById('myClassNumber').value)+']') 
+        myOut[parseInt(document.getElementById('myClassNumber').value)].print(true)      
+                                                                    
+        document.getElementById('myDivSummary').innerHTML =  'See console, will print a lot of information'                                                                                                       
+        //document.getElementById('myDivSummary').innerHTML =   myOut[parseInt(document.getElementById('myClassNumber').value)].dataSync()                                             
+        }" type="button"><br><br>
+
+
+        <div id="myDivSummary">...</div><br><br>
+
+        <h1>Simple Live Display</h1>
+        <div id="messages"></div>
+        <button type="button" onclick='doit("Click");'>Click to send message</button>
+        <hr/>
+        <div id="status">unknown</div>
+
+
+        <script>
+        
+        let myStoredInterval = 0
+        let myGroups = []
+
+                                                                                                  
+
+        //////////////////////////////////////// knn classifier stuff///////////////////////////
+                                                                                                  
+          takeAuto = async function(){                                                                                           
+            myStoredInterval = setInterval(async function(){                                                                                         
+              await myPredict()                                                                                       
+          }, document.getElementById('myInterval').value);        
+        }  
+
+        myInit = async function() {                                                                                            
+          classifier = knnClassifier.create();
+          mobilenetModule = await mobilenet.load();
+          console.log('knn-classigfier and mobinet loaded')                                                                                        
+        }
+
+
+        myTextChange = async function(){                                                                                              
+            document.getElementById('myClassText').value    = myGroups[document.getElementById('myClassNumber').value]                                                                                                                                                                                           
+        }                                                                                             
+
+        myNewTrain = async function(){                                                                                             
+          let myCanvasElement = document.getElementById('my32x32CanvasA');
+          let myCTX = myCanvasElement.getContext('2d');
+          myCTX.drawImage(myVideoStream, 0, 0, myCanvasElement.width, myCanvasElement.height);                                                                                           
+          const img1 = tf.browser.fromPixels(my32x32CanvasA);
+          const logits1 = mobilenetModule.infer(img1, 'conv_preds');                                                                                           
+          classifier.addExample(logits1, parseInt(document.getElementById('myClassNumber').value));
+          myGroups[document.getElementById('myClassNumber').value] = document.getElementById('myClassText').value
+          // console.log('Example Added: #  '+ document.getElementById('myClassNumber').value +' : '+document.getElementById('myClassText').value)                                                                                          
+          
+          const myAddCount = classifier.getClassExampleCount()[document.getElementById('myClassNumber').value]
+          const myGroupNumber =  document.getElementById('myClassNumber').value                                                                                         
+          document.getElementById('myDivLoss').innerHTML = myAddCount + ' times, Example Added: to group #: '+ myGroupNumber 
+        }
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+        myPredict = async function(){
+
+          if (classifier.getNumClasses() >= 1){
+                                                                                                    
+                                                                                                    
+          const x = tf.browser.fromPixels(myVideo); // using live video                                                                      
+          const xlogits = await mobilenetModule.infer(x, 'conv_preds');
+          const result = await classifier.predictClass(xlogits, 3);   // number of groups
+            
+          document.getElementById('myDivTest').innerHTML = 'Group: ' + result.classIndex + ', '+ 
+              Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
+                    document.getElementById('nurErgebnis').innerHTML = result.classIndex
+          //Hier wird der errechnete Wert an den WEbsocket weitergegeben
+          doit(result.classIndex)
+                                                                                                    
+                                                                                                    
+          // console.log(result); 
+          } else {(console.log('Need to train groups'))}
+        }
+                                                                                                    
+                                                                                                    
+                    
+        ///////////////////////////////////// End KNN- Classifier stuff /////////////////////////////////////                                                                                                
+        ///////////////////////////////////// webcam stuff /////////////////////////////////////                                                                                             
+        
+                                                                                                    
+        var myVideoStream = document.getElementById('myVideo')     // make it a global variable
+
+
+                                                                                                    
+                                                                                                    
+        stopVideo = async function() {  
+          clearInterval(myStoredInterval)   // god idea to stop the auto snapshot taking                                                                                         
+          myVideoStream.srcObject.getTracks().forEach(track => track.stop())  
+        }
+          
+          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+        getVideo = async function() {  
+          const myCamera = await document.getElementById('myCheck').value
+                                                                                            
+          navigator.getMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+          navigator.getMedia({video: { facingMode: myCamera }, audio: false},
+                            
+            function(stream) {
+              myVideoStream.srcObject = stream   
+              myVideoStream.play();
+          }, 
+                            
+          function(error) {
+            alert('webcam not working');
+          });
+        }
+          
+                                                            
+        myStopAuto  = async function(){                                                                                             
+            clearInterval(myStoredInterval)    
+        }                                                                                            
+          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+        ///////////////////////////////////////////// Done Webcam functions ////////////////////////////////////////                                                                                               
+                                                                                                    
+        myLoadUrl = async function(){
+          //alert('The test function will need to be changed if other models are loaded')                                                                                             
+          document.getElementById('myDivTest').innerHTML = 'Expect major code changes if you load a different model than what is expected'  
+          const myFileName = document.getElementById('myInFile').value
+          if (myFileName != null){  
+            model = await tf.loadLayersModel(myFileName);     // should make the model a global variable
+            document.getElementById('myDivSummary').innerHTML = ''      
+            await model.summary(null,null,x => {document.getElementById('myDivSummary').innerHTML += x + '<br>'});
+          // await myPredict()
+          }                                                                           
+        }                                                                                             
+                                                                                                    
+        //Hermanns Zeug//
+        mysaveModel = async function(){
+                                                                                                  
+
+                    alert('zwischenspeichern geht leider nicht');
+                    alert(document.getElementById('nurErgebnis').innerHTML);
+                    doit(document.getElementById('nurErgebnis').innerHTML);
+                    if (document.getElementById('nurErgebnis').innerHTML ==1) alert('geht!');
+                                                                              
+        }    
+        
+        </script>
+
+        <div id='myDiv123'>...</div><br>
+   
+    </body>
+</html>
