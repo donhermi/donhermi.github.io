@@ -151,7 +151,7 @@ stopVideo = async function() {
                                                                                              
                                                                                              
                                                                                              
-getVideo = async function() {  
+//getVideo = async function() {  
   const myCamera = await document.getElementById('myCheck').value
                                                                                      
   const constraints = {
@@ -169,7 +169,7 @@ function handleError(error) {
 }
  
 navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
-}
+//}
    
                                                     
 myStopAuto  = async function(){                                                                                             
