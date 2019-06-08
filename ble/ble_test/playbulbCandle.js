@@ -3,9 +3,9 @@
     let encoder = new TextEncoder('utf-8');
     let decoder = new TextDecoder('utf-8');
   
-    const CANDLE_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+    const CANDLE_SERVICE_UUID = 6E400001;
   
-    const Characteristics1 = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+    const Characteristics1 = 6E400002;
     const CANDLE_COLOR_UUID = 0xFFFC;
     const CANDLE_EFFECT_UUID = 0xFFFB;
   
