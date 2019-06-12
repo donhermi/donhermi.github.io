@@ -1,0 +1,13 @@
+<script>navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
+    .then(device => device.gatt.connect())
+    .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
+    .then(service => service.getCharacteristic('00001232-0000-1000-8000-00805f9b34fb'))
+    .then(characteristic => {
+      // Writing 1 is the signal to reset energy expended.
+      var resetEnergyExpended = Uint8Array.of(1);
+      return characteristic.writeValue(resetEnergyExpended);
+    })
+    .then(_ => {
+      console.log('Energy expended has been reset.');
+    })
+    .catch(error => { console.log(error); });</script>
