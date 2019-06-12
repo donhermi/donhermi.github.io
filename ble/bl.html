@@ -3,8 +3,7 @@
 
     navigator.bluetooth.requestDevice({
      // filters: [...] <- Prefer filters to save energy & show relevant devices.
-        acceptAllDevices: true,
-        optionalServices: optionalServices})
+        acceptAllDevices: true})
     .then(device => {
       return device.gatt.connect();
     })
