@@ -206,7 +206,8 @@ Characteristics Sample (Async Await)</a> sample.</p>
           log('>> Characteristic: ' + characteristic.uuid + ' ' +
               getSupportedProperties(characteristic));
               var resetEnergyExpended = Uint8Array.of(1);
-              return characteristic.writeValue(resetEnergyExpended);
+              characteristic.writeValue(resetEnergyExpended);
+              log(resetEnergyExpended);
         });
       }));
     });
