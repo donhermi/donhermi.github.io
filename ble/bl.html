@@ -185,7 +185,7 @@ Characteristics Sample (Async Await)</a> sample.</p>
   navigator.bluetooth.requestDevice({
    // filters: [...] <- Prefer filters to save energy & show relevant devices.
       acceptAllDevices: true,
-      optionalServices: "00001231-0000-1000-8000-00805f9b34fb"})
+      optionalServices: optionalServices})
   .then(device => {
     log('Connecting to GATT Server...');
     return device.gatt.connect();
