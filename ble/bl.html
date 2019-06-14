@@ -183,7 +183,7 @@ Characteristics Sample (Async Await)</a> sample.</p>
 
   log('Requesting any Bluetooth Device...');
   navigator.bluetooth.requestDevice({
-      filters: ['00001231-0000-1000-8000-00805f9b34fb'] //<- Prefer filters to save energy & show relevant devices.
+      name: 'UART Service' //<- Prefer filters to save energy & show relevant devices.
       //acceptAllDevices: true,
       //optionalServices: optionalServices
       })
