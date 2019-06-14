@@ -210,7 +210,7 @@ Characteristics Sample (Async Await)</a> sample.</p>
           log('>> Characteristic: ' + characteristic.uuid + ' ' +
               getSupportedProperties(characteristic));
               var resetEnergyExpended = 1;
-              writeValue(resetEnergyExpended);
+              characteristic.writeValue(resetEnergyExpended);
               log(resetEnergyExpended);
         });
       }));
