@@ -10,7 +10,7 @@ function WennKnopf1gedrückt(){
   })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
-        .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
+        .then(service => service.getCharacteristic('00001232-0000-1000-8000-00805f9b34fb'))
         .then(characteristic => {
           // Writing 1 is the signal to reset energy expended.
 
@@ -29,7 +29,7 @@ function WennKnopf2gedrückt(){
   })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
-        .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
+        .then(service => service.getCharacteristic('00001232-0000-1000-8000-00805f9b34fb'))
         .then(characteristic => {
           // Writing 1 is the signal to reset energy expended.
 
