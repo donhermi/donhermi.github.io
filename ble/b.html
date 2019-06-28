@@ -1,13 +1,40 @@
-<script>navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
-    .then(device => device.gatt.connect())
-    .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
-    .then(service => service.getCharacteristic('00001232-0000-1000-8000-00805f9b34fb'))
-    .then(characteristic => {
-      // Writing 1 is the signal to reset energy expended.
-      var resetEnergyExpended = Uint8Array.of(1);
-      return characteristic.writeValue(resetEnergyExpended);
-    })
-    .then(_ => {
-      console.log('Energy expended has been reset.');
-    })
-    .catch(error => { console.log(error); });</script>
+<html>
+
+  <button onclick="WennKnopf1gedrückt()">ᛒᛁᚠᛟᚱᚱ AKTIVIEREN!</button>
+  <button onclick="WennKnopf2gedrückt()">ᛒᛁᚠᛟᚱᚱ DEAKTIVIEREN!</button>
+  <script>
+WennKnopf1gedrückt(    
+  navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
+        .then(device => device.gatt.connect())
+        .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
+        .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
+        .then(characteristic => {
+          // Writing 1 is the signal to reset energy expended.
+
+          characteristic.writeValue(new TextEncoder().encode(String(131)));
+        })
+        .then(_ => {
+          console.log('Motor sollte laufen');
+        })
+        
+        )
+
+        WennKnopf2gedrückt(    
+  navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
+        .then(device => device.gatt.connect())
+        .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
+        .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
+        .then(characteristic => {
+          // Writing 1 is the signal to reset energy expended.
+
+          characteristic.writeValue(new TextEncoder().encode(String(130)));
+        })
+        .then(_ => {
+          console.log('Motor sollte stoppen');
+        })
+        
+        )
+        
+        </script>
+
+</html>
