@@ -3,7 +3,11 @@
 
   <script>
 function WennKnopf1gedrückt(){
-  navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
+  navigator.bluetooth.requestDevice({ 
+    filters: [{ 
+      name: 'Hermann rockt!'
+    }] 
+  })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
         .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
@@ -18,7 +22,11 @@ function WennKnopf1gedrückt(){
 }    
 
 function WennKnopf2gedrückt(){
-  navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
+  navigator.bluetooth.requestDevice({ 
+    filters: [{ 
+      name: 'Hermann rockt!'
+    }] 
+  })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
         .then(service => service.getCharacteristic('6e400002-B5A3-F393-E0A9-E50E24DCCA9E'))
