@@ -2,7 +2,7 @@
 
 
   <script>
-WennKnopf1gedrückt(    
+function WennKnopf1gedrückt(){
   navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
@@ -15,10 +15,9 @@ WennKnopf1gedrückt(
         .then(_ => {
           console.log('Motor sollte laufen');
         })
-        
-        )
+}    
 
-        WennKnopf2gedrückt(    
+function WennKnopf2gedrückt(){
   navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
         .then(device => device.gatt.connect())
         .then(server => server.getPrimaryService('00001231-0000-1000-8000-00805f9b34fb'))
@@ -26,13 +25,12 @@ WennKnopf1gedrückt(
         .then(characteristic => {
           // Writing 1 is the signal to reset energy expended.
 
-          characteristic.writeValue(new TextEncoder().encode(String(130)));
+          characteristic.writeValue(new TextEncoder().encode(String(131)));
         })
         .then(_ => {
-          console.log('Motor sollte stoppen');
+          console.log('Motor sollte laufen');
         })
-        
-        )
+}    
         
         </script>
 
