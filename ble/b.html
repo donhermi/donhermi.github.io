@@ -1,7 +1,6 @@
 <html>
 
-  <button onclick="WennKnopf1gedrückt()">ᛒᛁᚠᛟᚱᚱ AKTIVIEREN!</button>
-  <button onclick="WennKnopf2gedrückt()">ᛒᛁᚠᛟᚱᚱ DEAKTIVIEREN!</button>
+
   <script>
 WennKnopf1gedrückt(    
   navigator.bluetooth.requestDevice({ filters: [{ services: ['00001231-0000-1000-8000-00805f9b34fb'] }] })
@@ -36,5 +35,8 @@ WennKnopf1gedrückt(
         )
         
         </script>
+
+<button onclick="WennKnopf1gedrückt()">ᛒᛁᚠᛟᚱᚱ AKTIVIEREN!</button>
+<button onclick="WennKnopf2gedrückt()">ᛒᛁᚠᛟᚱᚱ DEAKTIVIEREN!</button>
 
 </html>
