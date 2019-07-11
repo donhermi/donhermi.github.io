@@ -15,7 +15,6 @@
         .then(characteristic => {
           // Writing 1 is the signal to reset energy expended.
           ᛒᛁᚠᛟᚱᚱ_characteristic = characteristic
-          ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(131)));
         })
 }    
 
