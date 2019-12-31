@@ -27,8 +27,10 @@
 
 <button onclick="ᛒᛁᚠᛟᚱᚱ_koppeln()">ᛒᛁᚠᛟᚱᚱ Koppeln. ZUERST KOPPELN!</button>
 <button onclick="WennKnopf1gedrückt()">ᛒᛁᚠᛟᚱᚱ AKTIVIEREN!</button>
-<button onclick="WennKnopf2gedrückt()">ᛒᛁᚠᛟᚱᚱ DEAKTIVIEREN!</button>
- <br><br>
+<button onclick="WennKnopf2gedrückt()">ᛒᛁᚠᛟᚱᚱ DEAKTIVIEREN!</button><br>
+<input id="Bluetoothwert" placeholder="erstenzwei ziffern für den PIN und der dritte Wert fuer 0-> aus  1-> an" value="131" type="text"><br>
+<button onclick="WennKnopf3gedrückt()">ᛒᛁᚠᛟᚱᚱ Wert übertragen!</button>
+<br><br>
 
 Analyse every <input id="myInterval" value="3000" size="5" type="number"> milliseconds<br>
 <input id="myButtonAuto" value="Auto" onclick="{takeAuto()}" type="button"> 
@@ -217,7 +219,13 @@ function WennKnopf1gedrückt(){
 
 function WennKnopf2gedrückt(){
   ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)));
-}    
+}
+
+
+function WennKnopf3gedrückt(){
+  ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(document.getElementById('myClassText').value)));
+}
+
 
 mysaveModelgehtnicht = async function(){
                                                                                           
