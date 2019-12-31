@@ -124,8 +124,8 @@ myPredict = async function(){
        Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
             document.getElementById('nurErgebnis').innerHTML = result.classIndex
     // if (result.classIndex == 0) {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
-    if (result.classIndex == 1) {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(131)))} 
-    else {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
+        ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(myGroups[result.classIndex])))
+    //else {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
 
 
                                                                                              
