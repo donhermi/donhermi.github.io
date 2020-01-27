@@ -130,7 +130,14 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         if (rxValue=="191"){
         digitalWrite(19,1);  
           }
-
+        if (rxValue=="links"){
+        digitalWrite(13,1);
+        digitalWrite(12,0);  
+          }
+        if (rxValue=="rechts"){
+        digitalWrite(13,0);
+        digitalWrite(12,1);  
+          }
 
         Serial.println();
         Serial.println("*********");
