@@ -1,15 +1,7 @@
 <script src="https://unpkg.com/blockly/blockly.min.js"></script>
-<style>
-  table {
-    height: 100%;
-    width: 100%;
-  }
-  #blocklyArea {
-    height: 99%;
-    background: #fc9;
-    text-align: center;
-  }
-</style>
+
+<div id="blocklyDiv" style="height: 480px; width: 600px;"></div>
+
 <table>
   <tr>
     <td id="blocklyArea">
@@ -17,10 +9,14 @@
     </td>
   </tr>
 </table>
-<div id="blocklyDiv" style="position: absolute"></div>
 <xml id="toolbox" style="display: none">
   <block type="controls_if"></block>
-  <block type="controls_whileUntil"></block>
+  <block type="controls_repeat_ext"></block>
+  <block type="logic_compare"></block>
+  <block type="math_number"></block>
+  <block type="math_arithmetic"></block>
+  <block type="text"></block>
+  <block type="text_print"></block>
 </xml>
 
 <script>
