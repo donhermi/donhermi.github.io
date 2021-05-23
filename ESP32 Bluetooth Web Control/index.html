@@ -1,19 +1,7 @@
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"> </script> 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script> 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier"></script> 
-    
-
-
 <input value="Load MobileNet 1000 object model" onclick="{
    myInit()
 }" type="button"><br><br>
 
-
-
-<select size="1" id="myCheck">
-<option value="environment">Rear Mobile Camera
-</option><option value="user">Front Mobile Camera
-</option></select>
 
 <input id="myButtonActivateWebCam" value="Activate WebCam" onclick="{getVideo()}" type="button"> 
 <input id="myButtonActivateWebCam" value="Stop WebCam" onclick="{ stopVideo()  }" type="button"> <br><br>
@@ -32,171 +20,7 @@
 <button onclick="WennKnopf3gedrückt()">ᛒᛁᚠᛟᚱᚱ Wert übertragen!</button>
 <br><br>
 
-Analyse every <input id="myInterval" value="3000" size="5" type="number"> milliseconds<br>
-<input id="myButtonAuto" value="Auto" onclick="{takeAuto()}" type="button"> 
-<input value="Stop Auto" onclick="{myStopAuto()}" type="button"><br><br>
-
-<video playsinline autoplay id="myVideo" style="border: 1px solid #ddd;" width="300" height="200"></video>
-<canvas id="my32x32CanvasA" style="border: 1px solid #ddd; background-color:lightgray;" width="300" height="200"></canvas> <br><br>
-
-
-<div id="myDivLoss">...</div><br>
-<div id="myDivTest">...</div><br>
-<div id="nurErgebnis">...</div><br>
-
-
-<input value="Show data for above Group" onclick="{
-  console.log('classifier.getNumClasses()')
-  console.log(classifier.getNumClasses())
-  const myOut = classifier.getClassifierDataset()
-  console.log('myOut['+parseInt(document.getElementById('myClassNumber').value)+']') 
-  myOut[parseInt(document.getElementById('myClassNumber').value)].print(true)      
-                                                              
-  document.getElementById('myDivSummary').innerHTML =  'See console, will print a lot of information'                                                                                                       
-  //document.getElementById('myDivSummary').innerHTML =   myOut[parseInt(document.getElementById('myClassNumber').value)].dataSync()                                             
-}" type="button"><br><br>
-
- 
-<div id="myDivSummary">...</div><br><br>
-
-
- 
- <!-- ************* Next we define the Javascript inside a web element so that the page can be refreshed dynamically **************-->
-
- <!--  ************* The entire next line can be replaced with the <script> tag for a more conventional approch. ****************** -->
-
 <script>
-
-///////////////////////////////////// Global Variables ////////////////////////////////                                                                                            
-                                                                                            
-let myStoredInterval = 0
-let myGroups = []
-
-                                                                                          
-
-//////////////////////////////////////// knn classifier stuff///////////////////////////
-                                                                                          
-  takeAuto = async function(){                                                                                           
-    myStoredInterval = setInterval(async function(){                                                                                         
-       await myPredict()                                                                                       
-   }, document.getElementById('myInterval').value);        
-}  
-
-myInit = async function() {                                                                                            
-   classifier = knnClassifier.create();
-   mobilenetModule = await mobilenet.load();
-   console.log('knn-classigfier and mobinet loaded')                                                                                        
-}
-
-
-myTextChange = async function(){                                                                                              
-    document.getElementById('myClassText').value    = myGroups[document.getElementById('myClassNumber').value]                                                                                                                                                                                           
-}                                                                                             
-
-myNewTrain = async function(){                                                                                             
-   let myCanvasElement = document.getElementById('my32x32CanvasA');
-   let myCTX = myCanvasElement.getContext('2d');
-   myCTX.drawImage(myVideoStream, 0, 0, myCanvasElement.width, myCanvasElement.height);                                                                                           
-   const img1 = tf.browser.fromPixels(my32x32CanvasA);
-   const logits1 = mobilenetModule.infer(img1, 'conv_preds');                                                                                           
-   classifier.addExample(logits1, parseInt(document.getElementById('myClassNumber').value));
-   myGroups[document.getElementById('myClassNumber').value] = document.getElementById('myClassText').value
-  // console.log('Example Added: #  '+ document.getElementById('myClassNumber').value +' : '+document.getElementById('myClassText').value)                                                                                          
-   
-   const myAddCount = classifier.getClassExampleCount()[document.getElementById('myClassNumber').value]
-   const myGroupNumber =  document.getElementById('myClassNumber').value                                                                                         
-   document.getElementById('myDivLoss').innerHTML = myAddCount + ' times, Example Added: to group #: '+ myGroupNumber 
-}
-                                                                                             
-                                                                                             
-                                                                                             
-                                                                                             
-myPredict = async function(){
-
-  if (classifier.getNumClasses() >= 1){
-                                                                                             
-                                                                                             
-   const x = tf.browser.fromPixels(myVideo); // using live video                                                                      
-   const xlogits = await mobilenetModule.infer(x, 'conv_preds');
-   const result = await classifier.predictClass(xlogits, 3);   // number of groups
-    
-   document.getElementById('myDivTest').innerHTML = 'Group: ' + result.classIndex + ', '+ 
-       Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
-            document.getElementById('nurErgebnis').innerHTML = result.classIndex
-    // if (result.classIndex == 0) {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
-        ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(myGroups[result.classIndex])))
-    //else {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
-
-
-                                                                                             
-  // console.log(result); 
-  } else {(console.log('Need to train groups'))}
-}
-                                                                                             
-                                                                                             
-            
-///////////////////////////////////// End KNN- Classifier stuff /////////////////////////////////////                                                                                                
-///////////////////////////////////// webcam stuff /////////////////////////////////////                                                                                             
- 
-                                                                                             
-var myVideoStream = document.getElementById('myVideo')     // make it a global variable
-
-
-                                                                                             
-                                                                                             
-stopVideo = async function() {  
-  clearInterval(myStoredInterval)   // god idea to stop the auto snapshot taking                                                                                         
-  myVideoStream.srcObject.getTracks().forEach(track => track.stop())  
-}
-   
-   
-                                                                                             
-                                                                                             
-                                                                                             
-//getVideo = async function() {  
-  const myCamera = document.getElementById('myCheck').value
-                                                                                     
-  const constraints = {
-  audio: false,
-  video: true
-};
- 
-function handleSuccess(stream) {
-  window.stream = stream; // make stream available to browser console
-  myVideoStream.srcObject = stream;
-}
- 
-function handleError(error) {
-  console.log('navigator.MediaDevices.getUserMedia error: ', error.message, error.name);
-}
- 
-navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
-//}
-   
-                                                    
-myStopAuto  = async function(){                                                                                             
-    clearInterval(myStoredInterval)    
-}                                                                                            
-  
-                                                                                             
-                                                                                             
-                                                                                             
- ///////////////////////////////////////////// Done Webcam functions ////////////////////////////////////////                                                                                               
-                                                                                             
- myLoadUrl = async function(){
-  //alert('The test function will need to be changed if other models are loaded')                                                                                             
-  document.getElementById('myDivTest').innerHTML = 'Expect major code changes if you load a different model than what is expected'  
-  const myFileName = document.getElementById('myInFile').value
-  if (myFileName != null){  
-    model = await tf.loadLayersModel(myFileName);     // should make the model a global variable
-    document.getElementById('myDivSummary').innerHTML = ''      
-    await model.summary(null,null,x => {document.getElementById('myDivSummary').innerHTML += x + '<br>'});
-   // await myPredict()
-  }                                                                           
-}                                                                                             
-                                                                                             
-//Hermanns Zeug//
-
 function ᛒᛁᚠᛟᚱᚱ_koppeln(){
   navigator.bluetooth.requestDevice({ 
     filters: [{ 
@@ -250,3 +74,4 @@ mysaveModelgehtnicht = async function(){
  
  
 <div id='myDiv123'>...</div><br>
+</script>
