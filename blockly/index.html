@@ -2,6 +2,11 @@
 
 <div id="blocklyDiv" style="height: 480px; width: 600px;"></div>
 
+  <p>
+    <button onclick="showCode()">Show JavaScript</button>
+    <button onclick="runCode()">Run JavaScript</button>
+  </p>
+
 <xml id="toolbox" style="display: none">
   <block type="controls_if"></block>
   <block type="controls_repeat_ext"></block>
@@ -16,4 +21,26 @@
   
   var workspace = Blockly.inject('blocklyDiv',
       {toolbox: document.getElementById('toolbox')});
+
+ function showCode() {
+      // Generate JavaScript code and display it.
+      Blockly.JavaScript.INFINITE_LOOP_TRAP = null;
+      var code = Blockly.JavaScript.workspaceToCode(demoWorkspace);
+      alert(code);
+    }
+
+function runCode() {
+      // Generate JavaScript code and run it.
+      window.LoopTrap = 1000;
+      Blockly.JavaScript.INFINITE_LOOP_TRAP =
+          'if (--window.LoopTrap == 0) throw "Infinite loop.";\n';
+      var code = Blockly.JavaScript.workspaceToCode(demoWorkspace);
+      Blockly.JavaScript.INFINITE_LOOP_TRAP = null;
+      try {
+        eval(code);
+      } catch (e) {
+        alert(e);
+      }
+    }
+
 </script>
