@@ -16,6 +16,7 @@
     <block type="init_ble"></block>
     <category name="ESP32_Kontrolle">
       <block type="signal_an_esp32"></block>
+      <block type="text"></block>
     </category>
   </category>
   <category name="Kontrolle">
@@ -31,7 +32,8 @@
 </xml>
 
 <script>
-  
+  var value_signal
+  var ᛒᛁᚠᛟᚱᚱ_characteristic
   //definition von init_ble
   Blockly.Blocks['init_ble'] = {
   init: function() {
@@ -69,7 +71,7 @@ Blockly.Blocks['signal_an_esp32'] = {
  Blockly.JavaScript['signal_an_esp32'] = function(block) {
   var value_signal = Blockly.JavaScript.valueToCode(block, 'signal', Blockly.JavaScript.ORDER_ATOMIC);
   // TODO: Assemble JavaScript into code variable.
-  //alert(value_signal)
+  alert(value_signal)
   var code = 'ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(value_signal));\n';
   return code;
 };
