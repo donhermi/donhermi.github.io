@@ -19,10 +19,31 @@
   <block type="math_arithmetic"></block>
   <block type="text"></block>
   <block type="text_print"></block>
+  <block type="init_ble"></block>
 </xml>
 
 <script>
   
+  //definition von init_ble
+  Blockly.Blocks['init_ble'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("ESP32 Bluetooth Connector");
+    this.setNextStatement(true, null);
+    this.setColour(330);
+ this.setTooltip("");
+ this.setHelpUrl("");
+  }
+};
+
+Blockly.JavaScript['init_ble'] = function(block) {
+  // TODO: Assemble JavaScript into code variable.
+  var code = '...;\n';
+  return code;
+};
+
+
+
   var workspace = Blockly.inject('blocklyDiv',
       {toolbox: document.getElementById('toolbox')});
 
