@@ -15,9 +15,7 @@
   <category name="ESP32 Bluetooth">
     <block type="init_ble"></block>
     <category name="ESP32_Kontrolle">
-      <block type="controls_if"></block>
-      <block type="controls_whileUntil"></block>
-      <block type="controls_for">
+      <block type="signal_an_esp32"></block>
     </category>
   </category>
   <category name="Kontrolle">
@@ -52,6 +50,29 @@ Blockly.JavaScript['init_ble'] = function(block) {
   return code;
 };
 
+
+//definition Signalübermittlung
+
+Blockly.Blocks['signal_an_esp32'] = {
+  init: function() {
+    this.appendValueInput("signal")
+        .setCheck("String")
+        .appendField("zu übermittelnder Wert");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+ this.setTooltip("");
+ this.setHelpUrl("");
+  }
+};
+
+ Blockly.JavaScript['signal_an_esp32'] = function(block) {
+  var value_signal = Blockly.JavaScript.valueToCode(block, 'signal', Blockly.JavaScript.ORDER_ATOMIC);
+  // TODO: Assemble JavaScript into code variable.
+  alert(value_signal)
+  var code = 'ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(value_signal));\n';
+  return code;
+};
 
 
   var workspace = Blockly.inject('blocklyDiv',
