@@ -72,7 +72,7 @@ Blockly.Blocks['signal_an_esp32'] = {
  Blockly.JavaScript['signal_an_esp32'] = function(block) {
   value_signal = Blockly.JavaScript.valueToCode(block, 'signal', Blockly.JavaScript.ORDER_ATOMIC);
   // TODO: Assemble JavaScript into code variable.
-  alert(value_signal)
+  //alert(value_signal)
   var code = 'ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(value_signal));\n';
   return code;
 };
