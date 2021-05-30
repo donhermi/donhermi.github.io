@@ -14,11 +14,10 @@
 <xml id="toolbox" style="display: none">
   <category name="ESP32 Bluetooth">
     <block type="init_ble"></block>
-    <category name="ESP32_Kontrolle">
+  </category>
+  <category name="ESP32 Kontrolle">
       <block type="signal_an_esp32"></block>
-      <block type="text"></block>
       <block type="math_number"></block>     
-    </category>
   </category>
   <category name="Kontrolle">
     <block type="controls_if"></block>
@@ -40,7 +39,7 @@
   init: function() {
     this.appendDummyInput()
         .appendField("ESP32 Bluetooth Connector");
-    this.setNextStatement(true, null);
+    this.setNextStatement(false, null);
     this.setColour(330);
  this.setTooltip("");
  this.setHelpUrl("");
