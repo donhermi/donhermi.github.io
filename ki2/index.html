@@ -10,11 +10,6 @@
 
 
 
-<select size="1" id="myCheck">
-<option value="environment">Rear Mobile Camera
-</option><option value="user">Front Mobile Camera
-</option></select>
-
 <input id="myButtonActivateWebCam" value="Activate WebCam" onclick="{getVideo()}" type="button"> 
 <input id="myButtonActivateWebCam" value="Stop WebCam" onclick="{ stopVideo()  }" type="button"> <br><br>
 
@@ -111,13 +106,7 @@ myPredict = async function(){
    document.getElementById('myDivTest').innerHTML = 'Group: ' + result.classIndex + ', '+ 
        Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
             document.getElementById('nurErgebnis').innerHTML = result.classIndex
-    // if (result.classIndex == 0) {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
-        ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(myGroups[result.classIndex])))
-    //else {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
 
-
-                                                                                             
-  // console.log(result); 
   } else {(console.log('Need to train groups'))}
 }
                                                                                              
@@ -137,10 +126,7 @@ stopVideo = async function() {
   myVideoStream.srcObject.getTracks().forEach(track => track.stop())  
 }
    
-                                                         
-                                                                                             
-//getVideo = async function() {  
- // const myCamera = document.getElementById('myCheck').value
+                          
                                                                                      
   const constraints = {
   audio: false,
