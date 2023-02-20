@@ -9,6 +9,12 @@
 }" type="button"><br><br>
 
 
+
+<select size="1" id="myCheck">
+<option value="environment">Rear Mobile Camera
+</option><option value="user">Front Mobile Camera
+</option></select>
+
 <input id="myButtonActivateWebCam" value="Activate WebCam" onclick="{getVideo()}" type="button"> 
 <input id="myButtonActivateWebCam" value="Stop WebCam" onclick="{ stopVideo()  }" type="button"> <br><br>
 
@@ -17,7 +23,7 @@
 <input value="0" size="3" id="myClassNumber" onchange="{
    myTextChange()                                                       
 }" type="number">
-<input id="myClassText" placeholder="Label for this trained class: example Cell Phone" value="Erster Wert" type="text"><br>
+<input id="myClassText" placeholder="Label for this trained class: example Cell Phone" value="Cup" type="text"><br>
 
 
 Analyse every <input id="myInterval" value="1000" size="5" type="number"> milliseconds<br>
@@ -54,7 +60,7 @@ Analyse every <input id="myInterval" value="1000" size="5" type="number"> millis
 let myStoredInterval = 0
 let myGroups = []
 
-myInit()                                                                                          
+                                                                                          
 
 //////////////////////////////////////// knn classifier stuff///////////////////////////
                                                                                           
@@ -105,8 +111,9 @@ myPredict = async function(){
    document.getElementById('myDivTest').innerHTML = 'Group: ' + result.classIndex + ', '+ 
        Math.round(result.confidences[result.classIndex]*100)+ '% ' + myGroups[result.classIndex]+ '<br>' 
             document.getElementById('nurErgebnis').innerHTML = result.classIndex
-
-            
+    // if (result.classIndex == 0) {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
+        ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(myGroups[result.classIndex])))
+    //else {ᛒᛁᚠᛟᚱᚱ_characteristic.writeValue(new TextEncoder().encode(String(130)))}
 
 
                                                                                              
@@ -129,7 +136,8 @@ stopVideo = async function() {
   clearInterval(myStoredInterval)   // god idea to stop the auto snapshot taking                                                                                         
   myVideoStream.srcObject.getTracks().forEach(track => track.stop())  
 }
-                                                            
+   
+                                                         
                                                                                              
 //getVideo = async function() {  
   const myCamera = document.getElementById('myCheck').value
