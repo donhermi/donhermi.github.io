@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ameisenstaat Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+        }
+        .game-container {
+            display: flex;
+            width: 100%;
+        }
+        .controls {
+            width: 300px;
+            margin-right: 20px;
+        }
+        .resource-box, .action-box {
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 5px;
+            background-color: white;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 2px;
+            width: 100%;
+        }
+        #gameCanvas {
+            border: 1px solid black;
+            background-color: #e0d5a8;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="controls">
+            <div class="resource-box">
+                <h2>Ressourcen</h2>
+                <p>Nahrung: <span id="food">0</span></p>
+                <p>Arbeiter: <span id="workers">1</span></p>
+                <p>Soldaten: <span id="soldiers">0</span></p>
+                <p>Nestgröße: <span id="nestSize">10</span></p>
+            </div>
+
+            <div class="action-box">
+                <h2>Aktionen</h2>
+                <button onclick="gatherFood()">Nahrung sammeln</button>
+                <button onclick="recruitWorker()">Arbeiter (10 Nahrung)</button>
+                <button onclick="recruitSoldier()">Soldat (20 Nahrung)</button>
+                <button onclick="expandNest()">Nest erweitern (50 Nahrung)</button>
+            </div>
+
+            <div class="resource-box">
+                <h2>Status</h2>
+                <p id="status">Spiel gestartet...</p>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <script>
+        // Spiel-Variablen
+        let resources = {
+            food: 0,
+            workers: 1,
+            soldiers: 0,
+            nestSize: 10
+        };
+
+        // Gegner-Typen
+        const enemyTypes = [
+            { name: "Rote Ameisen", strength: 1, color: "#ff4444", reward: 5 },
+            { name: "Schwarze Ameisen", strength: 2, color: "#444444", reward: 10 },
+            { name: "Termiten", strength: 3, color: "#888844", reward: 15 }
+        ];
+
+        let enemies = [];
+
+        // Canvas Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Spiel-Objekte
+        class Ant {
+            constructor(x, y, type, isEnemy = false) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.isEnemy = isEnemy;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = this.isEnemy ? this.type.color : (this.type === 'worker' ? '#6666ff' : '#ff6666');
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // Funktionen für Spielaktionen
+        function gatherFood() {
+            let gathered = resources.workers * 2;
+            resources.food += gathered;
+            updateDisplay();
+            addStatus(`Gesammelte ${gathered} Nahrung`);
+        }
+
+        function recruitWorker() {
+            if (resources.food >= 10 && resources.workers + resources.soldiers < resources.nestSize) {
+                resources.food -= 10;
+                resources.workers++;
+                updateDisplay();
+                addStatus("Neuer Arbeiter rekrutiert");
+            }
+        }
+
+        function recruitSoldier() {
+            if (resources.food >= 20 && resources.workers + resources.soldiers < resources.nestSize) {
+                resources.food -= 20;
+                resources.soldiers++;
+                updateDisplay();
+                addStatus("Neuer Soldat rekrutiert");
+            }
+        }
+
+        function expandNest() {
+            if (resources.food >= 50) {
+                resources.food -= 50;
+                resources.nestSize += 10;
+                updateDisplay();
+                addStatus("Nest erweitert");
+            }
+        }
+
+        // UI Update
+        function updateDisplay() {
+            document.getElementById('food').textContent = resources.food;
+            document.getElementById('workers').textContent = resources.workers;
+            document.getElementById('soldiers').textContent = resources.soldiers;
+            document.getElementById('nestSize').textContent = resources.nestSize;
+        }
+
+        function addStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // Gegner Spawn
+        function spawnEnemy() {
+            const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+            enemies.push(new Ant(580, Math.random() * 380 + 10, enemyType, true));
+        }
+
+        // Kampf Logik
+        function handleCombat() {
+            if (enemies.length > 0 && resources.soldiers > 0) {
+                let totalEnemyStrength = enemies.reduce((sum, enemy) => sum + enemy.type.strength, 0);
+                let battleResult = resources.soldiers * 2 - totalEnemyStrength;
+
+                if (battleResult > 0) {
+                    // Sieg
+                    let reward = enemies.reduce((sum, enemy) => sum + enemy.type.reward, 0);
+                    resources.food += reward;
+                    enemies = [];
+                    addStatus(`Sieg! ${reward} Nahrung als Belohnung erhalten`);
+                } else {
+                    // Niederlage
+                    let lostWorkers = Math.floor(Math.abs(battleResult) / 3);
+                    resources.workers = Math.max(0, resources.workers - lostWorkers);
+                    resources.soldiers = Math.max(0, resources.soldiers - Math.ceil(totalEnemyStrength / 2));
+                    addStatus(`Niederlage! Verloren: ${lostWorkers} Arbeiter`);
+                    enemies = enemies.slice(Math.floor(enemies.length / 2)); // Halbierung der Gegner
+                }
+                updateDisplay();
+            }
+        }
+
+        // Spiel-Loop mit Animation
+        function gameLoop() {
+            // Canvas leeren
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Nest zeichnen
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(50, 150, 100, 100);
+
+            // Eigene Ameisen zeichnen
+            for (let i = 0; i < resources.workers; i++) {
+                new Ant(80 + (i % 5) * 15, 180 + Math.floor(i / 5) * 15, 'worker').draw();
+            }
+            for (let i = 0; i < resources.soldiers; i++) {
+                new Ant(80 + (i % 5) * 15, 200 + Math.floor(i / 5) * 15, 'soldier').draw();
+            }
+
+            // Gegner zeichnen und bewegen
+            enemies.forEach((enemy, index) => {
+                enemy.x -= enemy.type.strength * 0.5; // Je stärker, desto schneller
+                enemy.draw();
+                if (enemy.x < 150) handleCombat(); // Kampf bei Nestnähe
+                if (enemy.x < 0) enemies.splice(index, 1); // Entfernen wenn außerhalb
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Gegner-Spawn-Intervall
+        setInterval(() => {
+            if (Math.random() < 0.7) spawnEnemy();
+        }, 3000);
+
+        // Spiel starten
+        updateDisplay();
+        gameLoop();
+    </script>
+</body>
+</html>
