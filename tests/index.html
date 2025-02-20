@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ameisenstaat Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .resource-box {
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 5px;
+            background-color: white;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 2px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ameisenstaat Simulator</h1>
+    
+    <div class="resource-box">
+        <h2>Ressourcen</h2>
+        <p>Nahrung: <span id="food">0</span></p>
+        <p>Arbeiter: <span id="workers">1</span></p>
+        <p>Soldaten: <span id="soldiers">0</span></p>
+        <p>Nestgröße: <span id="nestSize">10</span></p>
+    </div>
+
+    <div class="resource-box">
+        <h2>Aktionen</h2>
+        <button onclick="gatherFood()">Nahrung sammeln</button>
+        <button onclick="recruitWorker()">Arbeiter rekrutieren (10 Nahrung)</button>
+        <button onclick="recruitSoldier()">Soldaten rekrutieren (20 Nahrung)</button>
+        <button onclick="expandNest()">Nest erweitern (50 Nahrung)</button>
+    </div>
+
+    <div class="resource-box">
+        <h2>Status</h2>
+        <p id="status">Spiel gestartet...</p>
+        <p>Gegnerische Ameisen: <span id="enemyStrength">0</span></p>
+    </div>
+
+    <script>
+        // Spiel-Variablen
+        let resources = {
+            food: 0,
+            workers: 1,
+            soldiers: 0,
+            nestSize: 10
+        };
+        
+        let enemy = {
+            strength: 0,
+            growthRate: 0.5
+        };
+
+        // Funktionen für Spielaktionen
+        function gatherFood() {
+            let gathered = resources.workers * 2;
+            resources.food += gathered;
+            updateDisplay();
+            addStatus(`Gesammelte ${gathered} Nahrung`);
+        }
+
+        function recruitWorker() {
+            if (resources.food >= 10 && resources.workers + resources.soldiers < resources.nestSize) {
+                resources.food -= 10;
+                resources.workers++;
+                updateDisplay();
+                addStatus("Neuer Arbeiter rekrutiert");
+            } else {
+                addStatus("Nicht genug Nahrung oder Platz!");
+            }
+        }
+
+        function recruitSoldier() {
+            if (resources.food >= 20 && resources.workers + resources.soldiers < resources.nestSize) {
+                resources.food -= 20;
+                resources.soldiers++;
+                updateDisplay();
+                addStatus("Neuer Soldat rekrutiert");
+            } else {
+                addStatus("Nicht genug Nahrung oder Platz!");
+            }
+        }
+
+        function expandNest() {
+            if (resources.food >= 50) {
+                resources.food -= 50;
+                resources.nestSize += 10;
+                updateDisplay();
+                addStatus("Nest erweitert");
+            } else {
+                addStatus("Nicht genug Nahrung!");
+            }
+        }
+
+        // UI Update
+        function updateDisplay() {
+            document.getElementById('food').textContent = resources.food;
+            document.getElementById('workers').textContent = resources.workers;
+            document.getElementById('soldiers').textContent = resources.soldiers;
+            document.getElementById('nestSize').textContent = resources.nestSize;
+            document.getElementById('enemyStrength').textContent = Math.floor(enemy.strength);
+        }
+
+        function addStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // KI Gegner Logik
+        function enemyAI() {
+            enemy.strength += enemy.growthRate;
+            
+            // Angriff der Gegner
+            if (enemy.strength >= 20 && Math.random() < 0.3) {
+                let battleResult = resources.soldiers * 2 - enemy.strength;
+                if (battleResult > 0) {
+                    addStatus("Sieg! Gegnerische Ameisen besiegt!");
+                    enemy.strength = 0;
+                } else {
+                    let lostWorkers = Math.floor(Math.abs(battleResult) / 5);
+                    resources.workers = Math.max(0, resources.workers - lostWorkers);
+                    resources.food = Math.max(0, resources.food - enemy.strength);
+                    addStatus(`Niederlage! Verloren: ${lostWorkers} Arbeiter und ${Math.floor(enemy.strength)} Nahrung`);
+                    enemy.strength /= 2;
+                }
+            }
+            updateDisplay();
+        }
+
+        // Spiel-Loop
+        setInterval(enemyAI, 5000); // Gegner agieren alle 5 Sekunden
+
+    </script>
+</body>
+</html>
