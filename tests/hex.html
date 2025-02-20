@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ameisenstaat Hex Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+        }
+        .game-container {
+            display: flex;
+            width: 100%;
+        }
+        .controls {
+            width: 300px;
+            margin-right: 20px;
+        }
+        .resource-box, .action-box {
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 5px;
+            background-color: white;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 2px;
+            width: 100%;
+        }
+        #gameCanvas {
+            border: 1px solid black;
+            background-color: #e0d5a8;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="controls">
+            <div class="resource-box">
+                <h2>Ressourcen</h2>
+                <p>Nahrung: <span id="food">0</span></p>
+                <p>Arbeiter: <span id="workers">1</span></p>
+                <p>Soldaten: <span id="soldiers">0</span></p>
+                <p>Gebiet: <span id="territory">1</span></p>
+            </div>
+
+            <div class="action-box">
+                <h2>Aktionen</h2>
+                <button onclick="gatherFood()">Nahrung sammeln</button>
+                <button onclick="recruitWorker()">Arbeiter (10 Nahrung)</button>
+                <button onclick="recruitSoldier()">Soldat (20 Nahrung)</button>
+                <button onclick="expandTerritory()">Gebiet erweitern (50 Nahrung)</button>
+            </div>
+
+            <div class="resource-box">
+                <h2>Status</h2>
+                <p id="status">Spiel gestartet...</p>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="700" height="500"></canvas>
+    </div>
+
+    <script>
+        // Spiel-Variablen
+        let resources = {
+            food: 0,
+            workers: 1,
+            soldiers: 0,
+            territory: 1
+        };
+
+        // Hex Grid Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const hexSize = 30;
+        const hexHeight = hexSize * Math.sqrt(3);
+        let grid = new Map(); // Hexagon-Koordinaten: {q, r} -> Typ
+
+        // Gegner-Typen
+        const enemyTypes = [
+            { name: "Rote Ameisen", strength: 1, color: "#ff4444", reward: 5 },
+            { name: "Schwarze Ameisen", strength: 2, color: "#444444", reward: 10 },
+            { name: "Termiten", strength: 3, color: "#888844", reward: 15 }
+        ];
+        let enemies = [];
+
+        // Hex-Helferfunktionen
+        function drawHex(x, y, fill) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const px = x + hexSize * Math.cos(angle);
+                const py = y + hexSize * Math.sin(angle);
+                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function hexToPixel(q, r) {
+            const x = hexSize * 1.5 * q + canvas.width / 2;
+            const y = hexHeight * (r + q / 2) + canvas.height / 2;
+            return { x, y };
+        }
+
+        // Initiales Gebiet
+        grid.set('0,0', 'nest');
+
+        // Spielobjekte
+        class Unit {
+            constructor(q, r, type, isEnemy = false) {
+                this.q = q;
+                this.r = r;
+                this.type = type;
+                this.isEnemy = isEnemy;
+            }
+
+            draw() {
+                const { x, y } = hexToPixel(this.q, this.r);
+                ctx.beginPath();
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
+                ctx.fillStyle = this.isEnemy ? this.type.color : (this.type === 'worker' ? '#6666ff' : '#ff6666');
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // Spielaktionen
+        function gatherFood() {
+            let gathered = resources.workers * 2;
+            resources.food += gathered;
+            updateDisplay();
+            addStatus(`Gesammelte ${gathered} Nahrung`);
+        }
+
+        function recruitWorker() {
+            if (resources.food >= 10 && resources.workers + resources.soldiers < resources.territory * 5) {
+                resources.food -= 10;
+                resources.workers++;
+                updateDisplay();
+                addStatus("Neuer Arbeiter rekrutiert");
+            }
+        }
+
+        function recruitSoldier() {
+            if (resources.food >= 20 && resources.workers + resources.soldiers < resources.territory * 5) {
+                resources.food -= 20;
+                resources.soldiers++;
+                updateDisplay();
+                addStatus("Neuer Soldat rekrutiert");
+            }
+        }
+
+        function expandTerritory() {
+            if (resources.food >= 50) {
+                resources.food -= 50;
+                resources.territory++;
+                // Neues Hex hinzufügen (vereinfacht: nächstes freies Feld)
+                const neighbors = [[1,0], [-1,0], [0,1], [0,-1], [1,-1], [-1,1]];
+                for (let [dq, dr] of neighbors) {
+                    const newQ = dq;
+                    const newR = dr;
+                    const key = `${newQ},${newR}`;
+                    if (!grid.has(key)) {
+                        grid.set(key, 'territory');
+                        break;
+                    }
+                }
+                updateDisplay();
+                addStatus("Gebiet erweitert");
+            }
+        }
+
+        // UI Update
+        function updateDisplay() {
+            document.getElementById('food').textContent = resources.food;
+            document.getElementById('workers').textContent = resources.workers;
+            document.getElementById('soldiers').textContent = resources.soldiers;
+            document.getElementById('territory').textContent = resources.territory;
+        }
+
+        function addStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // Gegner Spawn
+        function spawnEnemy() {
+            const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+            const q = Math.floor(Math.random() * 8) - 4; // Außerhalb des sichtbaren Bereichs
+            const r = Math.floor(Math.random() * 8) - 4;
+            if (!grid.has(`${q},${r}`)) {
+                enemies.push(new Unit(q, r, enemyType, true));
+            }
+        }
+
+        // Kampf Logik
+        function handleCombat() {
+            enemies.forEach((enemy, index) => {
+                if (Math.abs(enemy.q) <= 1 && Math.abs(enemy.r) <= 1 && resources.soldiers > 0) {
+                    let battleResult = resources.soldiers * 2 - enemy.type.strength;
+                    if (battleResult > 0) {
+                        resources.food += enemy.type.reward;
+                        enemies.splice(index, 1);
+                        addStatus(`Sieg über ${enemy.type.name}! ${enemy.type.reward} Nahrung`);
+                    } else {
+                        let lostWorkers = Math.floor(enemy.type.strength / 2);
+                        resources.workers = Math.max(0, resources.workers - lostWorkers);
+                        resources.soldiers--;
+                        addStatus(`Niederlage gegen ${enemy.type.name}!`);
+                    }
+                    updateDisplay();
+                }
+            });
+        }
+
+        // Spiel-Loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Hex-Gitter zeichnen
+            grid.forEach((type, key) => {
+                const [q, r] = key.split(',').map(Number);
+                const { x, y } = hexToPixel(q, r);
+                drawHex(x, y, type === 'nest' ? '#8b4513' : '#90ee90');
+            });
+
+            // Einheiten zeichnen
+            let workersDrawn = 0, soldiersDrawn = 0;
+            grid.forEach((type, key) => {
+                const [q, r] = key.split(',').map(Number);
+                if (workersDrawn < resources.workers) {
+                    new Unit(q, r, 'worker').draw();
+                    workersDrawn++;
+                } else if (soldiersDrawn < resources.soldiers) {
+                    new Unit(q, r, 'soldier').draw();
+                    soldiersDrawn++;
+                }
+            });
+
+            // Gegner zeichnen und bewegen
+            enemies.forEach(enemy => {
+                enemy.draw();
+                // Einfache Bewegung zum Zentrum
+                enemy.q += enemy.q > 0 ? -0.05 : 0.05;
+                enemy.r += enemy.r > 0 ? -0.05 : 0.05;
+            });
+
+            handleCombat();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Gegner-Spawn-Intervall
+        setInterval(spawnEnemy, 5000);
+
+        // Spiel starten
+        updateDisplay();
+        gameLoop();
+    </script>
+</body>
+</html>
