@@ -33,19 +33,18 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const hexSize = 30; // Größe eines Hexagons
+        const hexSize = 30;
         let hexGrid = [];
         let playerResources = 100;
         let selectedHex = null;
         let difficulty = document.getElementById('difficulty').value;
 
-        // Hexagon-Koordinaten und Spielfeld initialisieren
         class Hex {
             constructor(q, r) {
-                this.q = q; // axiale Koordinaten
+                this.q = q;
                 this.r = r;
-                this.owner = null; // null = neutral, 'player' = Spieler, 'enemy' = Gegner
-                this.level = 0; // Aufrüstungsstufe (0-3)
+                this.owner = null;
+                this.level = 0;
             }
         }
 
@@ -56,9 +55,7 @@
                     hexGrid.push(new Hex(q, r));
                 }
             }
-            // Spielerstartpunkt
             hexGrid.find(h => h.q === 0 && h.r === 0).owner = 'player';
-            // Gegnerstartpunkte basierend auf Schwierigkeitsstufe
             spawnEnemies();
         }
 
@@ -69,13 +66,12 @@
                 let hex = hexGrid[Math.floor(Math.random() * hexGrid.length)];
                 if (!hex.owner) {
                     hex.owner = 'enemy';
-                    hex.level = Math.floor(Math.random() * 2) + 1; // Gegner haben Level 1-2
+                    hex.level = Math.floor(Math.random() * 2) + 1;
                     placed++;
                 }
             }
         }
 
-        // Hexagon zeichnen
         function drawHex(x, y, hex) {
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
@@ -104,7 +100,6 @@
             ctx.fillText(hex.level > 0 ? hex.level : '', x, y + 4);
         }
 
-        // Spielfeld rendern
         function drawGrid() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             hexGrid.forEach(hex => {
@@ -114,14 +109,12 @@
             document.getElementById('resources').textContent = playerResources;
         }
 
-        // Axelkoordinaten zu Pixelkoordinaten
         function axialToPixel(q, r) {
             let x = hexSize * 3/2 * q;
             let y = hexSize * Math.sqrt(3) * (r + q / 2);
             return [x, y];
         }
 
-        // Klick-Handler
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left - canvas.width / 2;
@@ -145,7 +138,6 @@
             drawGrid();
         });
 
-        // Nachbarschaft prüfen
         function isNeighbor(hex, owner) {
             return hexGrid.some(h => 
                 h.owner === owner && 
@@ -155,7 +147,6 @@
             );
         }
 
-        // Gebiet aufrüsten
         function upgradeSelected() {
             if (selectedHex && selectedHex.owner === 'player' && selectedHex.level < 3 && playerResources >= 20) {
                 selectedHex.level++;
@@ -164,11 +155,21 @@
             }
         }
 
-        // Gegneraktionen
+        function generateResources() {
+            let total = hexGrid.reduce((sum, hex) => {
+                if (hex.owner === 'player' && hex.level > 0) {
+                    return sum + hex.level; // 1 Ressource pro Level
+                }
+                return sum;
+            }, 0);
+            playerResources += total;
+            drawGrid();
+        }
+
         function enemyTurn() {
             hexGrid.filter(h => h.owner === 'enemy').forEach(enemy => {
                 let neighbors = hexGrid.filter(h => 
-                    !h.owner && isNeighbor(h, 'enemy') && Math.random() < (difficulty === 'hard' ? 0.5 : difficulty === 'medium' ? 0.3 : 0.1)
+                    !h.owner && isNeighbor(h, 'enemy') && Math.random() < (difficulty === 'hard' ? 0.4 : difficulty === 'medium' ? 0.2 : 0.05)
                 );
                 if (neighbors.length) {
                     let target = neighbors[Math.floor(Math.random() * neighbors.length)];
@@ -179,7 +180,6 @@
             drawGrid();
         }
 
-        // Spiel starten
         function startGame() {
             difficulty = document.getElementById('difficulty').value;
             playerResources = 100;
@@ -187,8 +187,10 @@
             drawGrid();
         }
 
-        // Spielschleife
-        setInterval(enemyTurn, 2000);
+        // Ressourcen alle 2 Sekunden generieren
+        setInterval(generateResources, 2000);
+        // Gegneraktionen alle 5 Sekunden (langsamer)
+        setInterval(enemyTurn, 5000);
         startGame();
     </script>
 </body>
