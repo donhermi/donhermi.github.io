@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ameisenstaat Hex Simulator</title>
+    <title>Ameisenstaat Hex Eroberung</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -51,6 +51,7 @@
                 <button onclick="recruitWorker()">Arbeiter (10 Nahrung)</button>
                 <button onclick="recruitSoldier()">Soldat (20 Nahrung)</button>
                 <button onclick="expandTerritory()">Gebiet erweitern (50 Nahrung)</button>
+                <button onclick="attackEnemy()">Feindgebiet angreifen (10 Soldaten)</button>
             </div>
 
             <div class="resource-box">
@@ -74,15 +75,15 @@
         // Hex Grid Setup
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const hexSize = 30;
+        const hexSize = 25;
         const hexHeight = hexSize * Math.sqrt(3);
-        let grid = new Map(); // Hexagon-Koordinaten: {q, r} -> Typ
+        let grid = new Map(); // {q,r} -> {type, owner}
 
-        // Gegner-Typen
-        const enemyTypes = [
-            { name: "Rote Ameisen", strength: 1, color: "#ff4444", reward: 5 },
-            { name: "Schwarze Ameisen", strength: 2, color: "#444444", reward: 10 },
-            { name: "Termiten", strength: 3, color: "#888844", reward: 15 }
+        // Gegnerische Fraktionen
+        const factions = [
+            { name: "Rote Ameisen", color: "#ff4444", strength: 5 },
+            { name: "Schwarze Ameisen", color: "#444444", strength: 8 },
+            { name: "Termiten", color: "#888844", strength: 12 }
         ];
         let enemies = [];
 
@@ -107,23 +108,35 @@
             return { x, y };
         }
 
-        // Initiales Gebiet
-        grid.set('0,0', 'nest');
+        function getNeighbors(q, r) {
+            return [[1,0], [-1,0], [0,1], [0,-1], [1,-1], [-1,1]]
+                .map(([dq, dr]) => `${q + dq},${r + dr}`);
+        }
+
+        // Initiales Setup
+        grid.set('0,0', { type: 'nest', owner: 'player' });
+        // Gegnerische Gebiete
+        factions.forEach((faction, i) => {
+            grid.set(`${i * 3 + 3},0`, { type: 'nest', owner: faction.name });
+            grid.set(`${i * 3 + 4},0`, { type: 'territory', owner: faction.name });
+        });
 
         // Spielobjekte
         class Unit {
-            constructor(q, r, type, isEnemy = false) {
+            constructor(q, r, type, owner) {
                 this.q = q;
                 this.r = r;
                 this.type = type;
-                this.isEnemy = isEnemy;
+                this.owner = owner;
             }
 
             draw() {
                 const { x, y } = hexToPixel(this.q, this.r);
                 ctx.beginPath();
-                ctx.arc(x, y, 10, 0, Math.PI * 2);
-                ctx.fillStyle = this.isEnemy ? this.type.color : (this.type === 'worker' ? '#6666ff' : '#ff6666');
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = this.owner === 'player' ? 
+                    (this.type === 'worker' ? '#6666ff' : '#ff6666') : 
+                    factions.find(f => f.name === this.owner)?.color || '#000';
                 ctx.fill();
                 ctx.closePath();
             }
@@ -159,19 +172,55 @@
             if (resources.food >= 50) {
                 resources.food -= 50;
                 resources.territory++;
-                // Neues Hex hinzufügen (vereinfacht: nächstes freies Feld)
-                const neighbors = [[1,0], [-1,0], [0,1], [0,-1], [1,-1], [-1,1]];
-                for (let [dq, dr] of neighbors) {
-                    const newQ = dq;
-                    const newR = dr;
-                    const key = `${newQ},${newR}`;
-                    if (!grid.has(key)) {
-                        grid.set(key, 'territory');
-                        break;
+                let expanded = false;
+                grid.forEach((value, key) => {
+                    if (value.owner === 'player' && !expanded) {
+                        const [q, r] = key.split(',').map(Number);
+                        const neighbors = getNeighbors(q, r);
+                        for (let neighbor of neighbors) {
+                            if (!grid.has(neighbor)) {
+                                grid.set(neighbor, { type: 'territory', owner: 'player' });
+                                expanded = true;
+                                break;
+                            }
+                        }
                     }
-                }
+                });
                 updateDisplay();
                 addStatus("Gebiet erweitert");
+            }
+        }
+
+        function attackEnemy() {
+            if (resources.soldiers >= 10) {
+                let target = null;
+                grid.forEach((value, key) => {
+                    if (value.owner !== 'player') {
+                        const [q, r] = key.split(',').map(Number);
+                        if (getNeighbors(q, r).some(n => grid.get(n)?.owner === 'player')) {
+                            target = { key, value };
+                        }
+                    }
+                });
+
+                if (target) {
+                    const faction = factions.find(f => f.name === target.value.owner);
+                    const battleResult = resources.soldiers - faction.strength;
+                    resources.soldiers -= 10;
+
+                    if (battleResult > 0) {
+                        grid.set(target.key, { type: 'territory', owner: 'player' });
+                        resources.territory++;
+                        addStatus(`Eroberung erfolgreich: ${target.value.owner} Gebiet`);
+                    } else {
+                        addStatus(`Angriff gescheitert gegen ${target.value.owner}`);
+                    }
+                    updateDisplay();
+                } else {
+                    addStatus("Kein angrenzendes Feindgebiet!");
+                }
+            } else {
+                addStatus("Nicht genug Soldaten!");
             }
         }
 
@@ -187,32 +236,12 @@
             document.getElementById('status').textContent = message;
         }
 
-        // Gegner Spawn
-        function spawnEnemy() {
-            const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-            const q = Math.floor(Math.random() * 8) - 4; // Außerhalb des sichtbaren Bereichs
-            const r = Math.floor(Math.random() * 8) - 4;
-            if (!grid.has(`${q},${r}`)) {
-                enemies.push(new Unit(q, r, enemyType, true));
-            }
-        }
-
-        // Kampf Logik
-        function handleCombat() {
-            enemies.forEach((enemy, index) => {
-                if (Math.abs(enemy.q) <= 1 && Math.abs(enemy.r) <= 1 && resources.soldiers > 0) {
-                    let battleResult = resources.soldiers * 2 - enemy.type.strength;
-                    if (battleResult > 0) {
-                        resources.food += enemy.type.reward;
-                        enemies.splice(index, 1);
-                        addStatus(`Sieg über ${enemy.type.name}! ${enemy.type.reward} Nahrung`);
-                    } else {
-                        let lostWorkers = Math.floor(enemy.type.strength / 2);
-                        resources.workers = Math.max(0, resources.workers - lostWorkers);
-                        resources.soldiers--;
-                        addStatus(`Niederlage gegen ${enemy.type.name}!`);
-                    }
-                    updateDisplay();
+        // Gegnerische Einheiten spawnen
+        function spawnEnemyUnits() {
+            grid.forEach((value, key) => {
+                if (value.owner !== 'player' && Math.random() < 0.2) {
+                    const [q, r] = key.split(',').map(Number);
+                    enemies.push(new Unit(q, r, 'soldier', value.owner));
                 }
             });
         }
@@ -222,39 +251,58 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Hex-Gitter zeichnen
-            grid.forEach((type, key) => {
+            grid.forEach((value, key) => {
                 const [q, r] = key.split(',').map(Number);
                 const { x, y } = hexToPixel(q, r);
-                drawHex(x, y, type === 'nest' ? '#8b4513' : '#90ee90');
+                const fill = value.owner === 'player' ? 
+                    (value.type === 'nest' ? '#8b4513' : '#90ee90') : 
+                    factions.find(f => f.name === value.owner)?.color || '#ccc';
+                drawHex(x, y, fill);
             });
 
-            // Einheiten zeichnen
+            // Spieler-Einheiten zeichnen
             let workersDrawn = 0, soldiersDrawn = 0;
-            grid.forEach((type, key) => {
-                const [q, r] = key.split(',').map(Number);
-                if (workersDrawn < resources.workers) {
-                    new Unit(q, r, 'worker').draw();
-                    workersDrawn++;
-                } else if (soldiersDrawn < resources.soldiers) {
-                    new Unit(q, r, 'soldier').draw();
-                    soldiersDrawn++;
+            grid.forEach((value, key) => {
+                if (value.owner === 'player') {
+                    const [q, r] = key.split(',').map(Number);
+                    if (workersDrawn < resources.workers) {
+                        new Unit(q, r, 'worker', 'player').draw();
+                        workersDrawn++;
+                    } else if (soldiersDrawn < resources.soldiers) {
+                        new Unit(q, r, 'soldier', 'player').draw();
+                        soldiersDrawn++;
+                    }
                 }
             });
 
-            // Gegner zeichnen und bewegen
-            enemies.forEach(enemy => {
+            // Gegnerische Einheiten zeichnen und bewegen
+            enemies.forEach((enemy, index) => {
                 enemy.draw();
-                // Einfache Bewegung zum Zentrum
-                enemy.q += enemy.q > 0 ? -0.05 : 0.05;
-                enemy.r += enemy.r > 0 ? -0.05 : 0.05;
+                const targetQ = grid.get('0,0') ? 0 : enemy.q;
+                const targetR = grid.get('0,0') ? 0 : enemy.r;
+                enemy.q += enemy.q > targetQ ? -0.05 : 0.05;
+                enemy.r += enemy.r > targetR ? -0.05 : 0.05;
+
+                if (Math.abs(enemy.q - targetQ) < 0.1 && Math.abs(enemy.r - targetR) < 0.1) {
+                    const faction = factions.find(f => f.name === enemy.owner);
+                    if (resources.soldiers > faction.strength) {
+                        resources.soldiers -= faction.strength;
+                        enemies.splice(index, 1);
+                        addStatus(`${enemy.owner} Angriff abgewehrt`);
+                    } else {
+                        resources.workers = Math.max(0, resources.workers - faction.strength);
+                        grid.delete('0,0');
+                        addStatus("Nest verloren! Spielende!");
+                    }
+                    updateDisplay();
+                }
             });
 
-            handleCombat();
             requestAnimationFrame(gameLoop);
         }
 
         // Gegner-Spawn-Intervall
-        setInterval(spawnEnemy, 5000);
+        setInterval(spawnEnemyUnits, 7000);
 
         // Spiel starten
         updateDisplay();
