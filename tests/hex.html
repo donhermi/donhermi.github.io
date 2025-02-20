@@ -32,6 +32,11 @@
             border: 1px solid black;
             background-color: #e0d5a8;
         }
+        select {
+            width: 100%;
+            padding: 5px;
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -47,6 +52,11 @@
 
             <div class="action-box">
                 <h2>Aktionen</h2>
+                <select id="difficulty" onchange="setDifficulty()">
+                    <option value="easy">Leicht</option>
+                    <option value="medium" selected>Mittel</option>
+                    <option value="hard">Schwer</option>
+                </select>
                 <button onclick="gatherFood()">Nahrung sammeln</button>
                 <button onclick="recruitWorker()">Arbeiter (10 Nahrung)</button>
                 <button onclick="recruitSoldier()">Soldat (20 Nahrung)</button>
@@ -66,26 +76,35 @@
     <script>
         // Spiel-Variablen
         let resources = {
-            food: 0,
-            workers: 1,
+            food: 20, // Start mit etwas Nahrung
+            workers: 2, // Mehr Start-Arbeiter
             soldiers: 0,
             territory: 1
         };
+
+        // Schwierigkeitsstufen
+        const difficultySettings = {
+            easy: { enemyStrength: 0.5, spawnRate: 10000, attackCost: 5, gatherMultiplier: 3 },
+            medium: { enemyStrength: 1, spawnRate: 7000, attackCost: 10, gatherMultiplier: 2 },
+            hard: { enemyStrength: 1.5, spawnRate: 5000, attackCost: 10, gatherMultiplier: 1 }
+        };
+        let currentDifficulty = difficultySettings.medium;
 
         // Hex Grid Setup
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const hexSize = 25;
         const hexHeight = hexSize * Math.sqrt(3);
-        let grid = new Map(); // {q,r} -> {type, owner}
+        let grid = new Map();
 
         // Gegnerische Fraktionen
         const factions = [
-            { name: "Rote Ameisen", color: "#ff4444", strength: 5 },
-            { name: "Schwarze Ameisen", color: "#444444", strength: 8 },
-            { name: "Termiten", color: "#888844", strength: 12 }
+            { name: "Rote Ameisen", color: "#ff4444", baseStrength: 5 },
+            { name: "Schwarze Ameisen", color: "#444444", baseStrength: 8 },
+            { name: "Termiten", color: "#888844", baseStrength: 12 }
         ];
         let enemies = [];
+        let spawnInterval;
 
         // Hex-Helferfunktionen
         function drawHex(x, y, fill) {
@@ -114,12 +133,26 @@
         }
 
         // Initiales Setup
-        grid.set('0,0', { type: 'nest', owner: 'player' });
-        // Gegnerische Gebiete
-        factions.forEach((faction, i) => {
-            grid.set(`${i * 3 + 3},0`, { type: 'nest', owner: faction.name });
-            grid.set(`${i * 3 + 4},0`, { type: 'territory', owner: faction.name });
-        });
+        function initializeGame() {
+            grid.clear();
+            enemies = [];
+            grid.set('0,0', { type: 'nest', owner: 'player' });
+            factions.forEach((faction, i) => {
+                grid.set(`${i * 3 + 3},0`, { type: 'nest', owner: faction.name });
+                grid.set(`${i * 3 + 4},0`, { type: 'territory', owner: faction.name });
+            });
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnEnemyUnits, currentDifficulty.spawnRate);
+            updateDisplay();
+        }
+
+        // Schwierigkeitsgrad ändern
+        function setDifficulty() {
+            const value = document.getElementById('difficulty').value;
+            currentDifficulty = difficultySettings[value];
+            initializeGame();
+            addStatus(`Schwierigkeit auf ${value} geändert`);
+        }
 
         // Spielobjekte
         class Unit {
@@ -144,7 +177,7 @@
 
         // Spielaktionen
         function gatherFood() {
-            let gathered = resources.workers * 2;
+            let gathered = resources.workers * currentDifficulty.gatherMultiplier;
             resources.food += gathered;
             updateDisplay();
             addStatus(`Gesammelte ${gathered} Nahrung`);
@@ -192,7 +225,7 @@
         }
 
         function attackEnemy() {
-            if (resources.soldiers >= 10) {
+            if (resources.soldiers >= currentDifficulty.attackCost) {
                 let target = null;
                 grid.forEach((value, key) => {
                     if (value.owner !== 'player') {
@@ -205,8 +238,9 @@
 
                 if (target) {
                     const faction = factions.find(f => f.name === target.value.owner);
-                    const battleResult = resources.soldiers - faction.strength;
-                    resources.soldiers -= 10;
+                    const enemyStrength = faction.baseStrength * currentDifficulty.enemyStrength;
+                    const battleResult = resources.soldiers - enemyStrength;
+                    resources.soldiers -= currentDifficulty.attackCost;
 
                     if (battleResult > 0) {
                         grid.set(target.key, { type: 'territory', owner: 'player' });
@@ -285,12 +319,13 @@
 
                 if (Math.abs(enemy.q - targetQ) < 0.1 && Math.abs(enemy.r - targetR) < 0.1) {
                     const faction = factions.find(f => f.name === enemy.owner);
-                    if (resources.soldiers > faction.strength) {
-                        resources.soldiers -= faction.strength;
+                    const enemyStrength = faction.baseStrength * currentDifficulty.enemyStrength;
+                    if (resources.soldiers > enemyStrength) {
+                        resources.soldiers -= Math.ceil(enemyStrength);
                         enemies.splice(index, 1);
                         addStatus(`${enemy.owner} Angriff abgewehrt`);
                     } else {
-                        resources.workers = Math.max(0, resources.workers - faction.strength);
+                        resources.workers = Math.max(0, resources.workers - Math.ceil(enemyStrength));
                         grid.delete('0,0');
                         addStatus("Nest verloren! Spielende!");
                     }
@@ -301,11 +336,8 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Gegner-Spawn-Intervall
-        setInterval(spawnEnemyUnits, 7000);
-
-        // Spiel starten
-        updateDisplay();
+        // Initialisierung
+        initializeGame();
         gameLoop();
     </script>
 </body>
