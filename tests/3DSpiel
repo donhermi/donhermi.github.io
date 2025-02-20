@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Shooter</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100%; }
+        #health { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial; }
+        #info { position: absolute; top: 10px; right: 10px; color: white; font-family: Arial; }
+    </style>
+</head>
+<body>
+    <div id="health">Gesundheit: 100</div>
+    <div id="info">WASD: Bewegen | Maus: Zielen | Linksklick: Schießen</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Szene, Kamera, Renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Spieler
+        const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.set(0, 0.5, 0);
+        scene.add(player);
+        let playerHealth = 100;
+
+        // Boden
+        const groundGeometry = new THREE.PlaneGeometry(50, 50);
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x555555 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Gegner
+        const enemies = [];
+        const enemyGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const enemyMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+        function spawnEnemy() {
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+            enemy.position.set(
+                Math.random() * 40 - 20,
+                0.5,
+                Math.random() * 40 - 20
+            );
+            enemy.health = 50;
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        // Kugeln (Schüsse)
+        const bulletGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const bullets = [];
+
+        // Kamera-Position
+        camera.position.set(0, 5, 10);
+        camera.lookAt(player.position);
+
+        // Bewegungssteuerung
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        // Maussteuerung
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        document.addEventListener('click', () => {
+            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+            bullet.position.copy(player.position);
+            bullet.direction = new THREE.Vector3(mouseX, 0, mouseY - 0.5).normalize();
+            scene.add(bullet);
+            bullets.push(bullet);
+        });
+
+        // Raycaster für Kollisionen
+        const raycaster = new THREE.Raycaster();
+
+        // Gegner spawnen
+        for (let i = 0; i < 5; i++) spawnEnemy();
+
+        // Spielschleife
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Spielerbewegung
+            const speed = 0.1;
+            if (keys['w']) player.position.z -= speed;
+            if (keys['s']) player.position.z += speed;
+            if (keys['a']) player.position.x -= speed;
+            if (keys['d']) player.position.x += speed;
+
+            // Kamera folgt Spieler
+            camera.position.set(player.position.x, 5, player.position.z + 10);
+            camera.lookAt(player.position);
+
+            // Kugeln bewegen
+            bullets.forEach((bullet, index) => {
+                bullet.position.add(bullet.direction.clone().multiplyScalar(0.5));
+                if (bullet.position.distanceTo(player.position) > 20) {
+                    scene.remove(bullet);
+                    bullets.splice(index, 1);
+                } else {
+                    // Kollision mit Gegnern
+                    enemies.forEach((enemy, eIndex) => {
+                        if (bullet.position.distanceTo(enemy.position) < 1) {
+                            enemy.health -= 20;
+                            scene.remove(bullet);
+                            bullets.splice(index, 1);
+                            if (enemy.health <= 0) {
+                                scene.remove(enemy);
+                                enemies.splice(eIndex, 1);
+                                spawnEnemy(); // Neuer Gegner
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Gegnerverhalten
+            enemies.forEach(enemy => {
+                const direction = player.position.clone().sub(enemy.position).normalize();
+                enemy.position.add(direction.multiplyScalar(0.03));
+                // Schaden an Spieler
+                if (enemy.position.distanceTo(player.position) < 1 && playerHealth > 0) {
+                    playerHealth -= 1;
+                    document.getElementById('health').textContent = `Gesundheit: ${playerHealth}`;
+                    if (playerHealth <= 0) {
+                        alert('Game Over!');
+                        playerHealth = 100;
+                        document.getElementById('health').textContent = `Gesundheit: ${playerHealth}`;
+                        enemies.forEach(e => scene.remove(e));
+                        enemies.length = 0;
+                        for (let i = 0; i < 5; i++) spawnEnemy();
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Fenstergröße anpassen
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
