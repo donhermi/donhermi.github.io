@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Ameisenstaat - Hex-Strategie</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        #controls {
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label for="difficulty">Schwierigkeitsstufe: </label>
+        <select id="difficulty" onchange="startGame()">
+            <option value="easy">Leicht</option>
+            <option value="medium" selected>Mittel</option>
+            <option value="hard">Schwer</option>
+        </select>
+        <p>Ressourcen: <span id="resources">100</span></p>
+        <button onclick="upgradeSelected()">Gebiet aufrüsten</button>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const hexSize = 30; // Größe eines Hexagons
+        let hexGrid = [];
+        let playerResources = 100;
+        let selectedHex = null;
+        let difficulty = document.getElementById('difficulty').value;
+
+        // Hexagon-Koordinaten und Spielfeld initialisieren
+        class Hex {
+            constructor(q, r) {
+                this.q = q; // axiale Koordinaten
+                this.r = r;
+                this.owner = null; // null = neutral, 'player' = Spieler, 'enemy' = Gegner
+                this.level = 0; // Aufrüstungsstufe (0-3)
+            }
+        }
+
+        function initGrid() {
+            hexGrid = [];
+            for (let q = -5; q <= 5; q++) {
+                for (let r = Math.max(-5, -q - 5); r <= Math.min(5, -q + 5); r++) {
+                    hexGrid.push(new Hex(q, r));
+                }
+            }
+            // Spielerstartpunkt
+            hexGrid.find(h => h.q === 0 && h.r === 0).owner = 'player';
+            // Gegnerstartpunkte basierend auf Schwierigkeitsstufe
+            spawnEnemies();
+        }
+
+        function spawnEnemies() {
+            let enemyCount = { easy: 2, medium: 4, hard: 6 }[difficulty];
+            let placed = 0;
+            while (placed < enemyCount) {
+                let hex = hexGrid[Math.floor(Math.random() * hexGrid.length)];
+                if (!hex.owner) {
+                    hex.owner = 'enemy';
+                    hex.level = Math.floor(Math.random() * 2) + 1; // Gegner haben Level 1-2
+                    placed++;
+                }
+            }
+        }
+
+        // Hexagon zeichnen
+        function drawHex(x, y, hex) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                let angle = (Math.PI / 3) * i;
+                let px = x + hexSize * Math.cos(angle);
+                let py = y + hexSize * Math.sin(angle);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = hex.owner === 'player' ? `rgba(0, 255, 0, ${0.3 + hex.level * 0.2})` :
+                            hex.owner === 'enemy' ? `rgba(255, 0, 0, ${0.3 + hex.level * 0.2})` :
+                            'rgba(200, 200, 200, 0.5)';
+            ctx.fill();
+            ctx.stroke();
+            if (hex === selectedHex) {
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'yellow';
+                ctx.stroke();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'black';
+            }
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(hex.level > 0 ? hex.level : '', x, y + 4);
+        }
+
+        // Spielfeld rendern
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hexGrid.forEach(hex => {
+                let [x, y] = axialToPixel(hex.q, hex.r);
+                drawHex(x + canvas.width / 2, y + canvas.height / 2, hex);
+            });
+            document.getElementById('resources').textContent = playerResources;
+        }
+
+        // Axelkoordinaten zu Pixelkoordinaten
+        function axialToPixel(q, r) {
+            let x = hexSize * 3/2 * q;
+            let y = hexSize * Math.sqrt(3) * (r + q / 2);
+            return [x, y];
+        }
+
+        // Klick-Handler
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left - canvas.width / 2;
+            const mouseY = e.clientY - rect.top - canvas.height / 2;
+            selectedHex = null;
+            hexGrid.forEach(hex => {
+                let [x, y] = axialToPixel(hex.q, hex.r);
+                if (Math.hypot(mouseX - x, mouseY - y) < hexSize) {
+                    if (hex.owner === 'player' || isNeighbor(hex, 'player')) {
+                        selectedHex = hex;
+                        if (!hex.owner && playerResources >= 10) {
+                            hex.owner = 'player';
+                            playerResources -= 10;
+                        } else if (hex.owner === 'enemy' && playerResources >= 20 * hex.level) {
+                            hex.owner = 'player';
+                            playerResources -= 20 * hex.level;
+                        }
+                    }
+                }
+            });
+            drawGrid();
+        });
+
+        // Nachbarschaft prüfen
+        function isNeighbor(hex, owner) {
+            return hexGrid.some(h => 
+                h.owner === owner && 
+                Math.abs(h.q - hex.q) <= 1 && 
+                Math.abs(h.r - hex.r) <= 1 && 
+                Math.abs((h.q + h.r) - (hex.q + hex.r)) <= 1
+            );
+        }
+
+        // Gebiet aufrüsten
+        function upgradeSelected() {
+            if (selectedHex && selectedHex.owner === 'player' && selectedHex.level < 3 && playerResources >= 20) {
+                selectedHex.level++;
+                playerResources -= 20;
+                drawGrid();
+            }
+        }
+
+        // Gegneraktionen
+        function enemyTurn() {
+            hexGrid.filter(h => h.owner === 'enemy').forEach(enemy => {
+                let neighbors = hexGrid.filter(h => 
+                    !h.owner && isNeighbor(h, 'enemy') && Math.random() < (difficulty === 'hard' ? 0.5 : difficulty === 'medium' ? 0.3 : 0.1)
+                );
+                if (neighbors.length) {
+                    let target = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    target.owner = 'enemy';
+                    target.level = enemy.level;
+                }
+            });
+            drawGrid();
+        }
+
+        // Spiel starten
+        function startGame() {
+            difficulty = document.getElementById('difficulty').value;
+            playerResources = 100;
+            initGrid();
+            drawGrid();
+        }
+
+        // Spielschleife
+        setInterval(enemyTurn, 2000);
+        startGame();
+    </script>
+</body>
+</html>
