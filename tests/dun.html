@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>2D Dungeon Spiel</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a1a;
+            overflow: hidden;
+        }
+        #gameContainer {
+            text-align: center;
+            position: relative;
+        }
+        #score {
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            margin-bottom: 10px;
+        }
+        #gameCanvas {
+            border: 1px solid white;
+            background-color: #333333;
+            max-width: 100%;
+            max-height: 100vh;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: none; /* Nur auf Mobile sichtbar */
+        }
+        #attackButton {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #ff5555;
+            border-radius: 50%;
+            border: none;
+            font-size: 20px;
+            color: white;
+            display: none; /* Nur auf Mobile sichtbar */
+        }
+        @media (max-width: 600px) or (pointer: coarse) {
+            #controls, #attackButton {
+                display: block;
+            }
+            #gameCanvas {
+                width: 100vw;
+                height: calc(100vh - 100px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="score">Score: 0 | HP: 5</div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <canvas id="controls" width="100" height="100"></canvas>
+        <button id="attackButton">⚔️</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const controlsCanvas = document.getElementById('controls');
+        const controlsCtx = controlsCanvas.getContext('2d');
+        const attackButton = document.getElementById('attackButton');
+
+        // Spieler
+        let player = {
+            x: 400,
+            y: 300,
+            size: 32,
+            speed: 5,
+            color: 'green',
+            direction: 'right',
+            weaponActive: false,
+            weaponCooldown: 0,
+            hp: 5
+        };
+
+        // Monster
+        let monsters = [];
+        for (let i = 0; i < 5; i++) {
+            monsters.push({
+                x: Math.random() * (800 - 32),
+                y: Math.random() * (600 - 32),
+                size: 32,
+                speed: 1,
+                color: 'red'
+            });
+        }
+
+        // Boss
+        let boss = null; // Erscheint erst, wenn alle Monster besiegt sind
+
+        // Spielzustand
+        let score = 0;
+        let keys = {};
+        let touch = { active: false, startX: 0, startY: 0, moveX: 0, moveY: 0 };
+
+        // Tastatureingaben
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ' && player.weaponCooldown <= 0) {
+                player.weaponActive = true;
+                player.weaponCooldown = 20;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // Touch-Steuerung
+        controlsCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touchEvent = e.touches[0];
+            touch.active = true;
+            touch.startX = touchEvent.clientX - controlsCanvas.offsetLeft;
+            touch.startY = touchEvent.clientY - controlsCanvas.offsetTop;
+            touch.moveX = touch.startX;
+            touch.moveY = touch.startY;
+        });
+        controlsCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touchEvent = e.touches[0];
+            touch.moveX = touchEvent.clientX - controlsCanvas.offsetLeft;
+            touch.moveY = touchEvent.clientY - controlsCanvas.offsetTop;
+        });
+        controlsCanvas.addEventListener('touchend', () => {
+            touch.active = false;
+        });
+        attackButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (player.weaponCooldown <= 0) {
+                player.weaponActive = true;
+                player.weaponCooldown = 20;
+            }
+        });
+
+        function movePlayer() {
+            // Tastatur
+            if (keys['w'] && player.y - player.size / 2 > 0) {
+                player.y -= player.speed;
+                player.direction = 'up';
+            }
+            if (keys['s'] && player.y + player.size / 2 < canvas.height) {
+                player.y += player.speed;
+                player.direction = 'down';
+            }
+            if (keys['a'] && player.x - player.size / 2 > 0) {
+                player.x -= player.speed;
+                player.direction = 'left';
+            }
+            if (keys['d'] && player.x + player.size / 2 < canvas.width) {
+                player.x += player.speed;
+                player.direction = 'right';
+            }
+
+            // Touch
+            if (touch.active) {
+                const dx = touch.moveX - touch.startX;
+                const dy = touch.moveY - touch.startY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > 10) {
+                    const moveX = (dx / distance) * player.speed;
+                    const moveY = (dy / distance) * player.speed;
+                    if (player.x + moveX - player.size / 2 > 0 && player.x + moveX + player.size / 2 < canvas.width) {
+                        player.x += moveX;
+                    }
+                    if (player.y + moveY - player.size / 2 > 0 && player.y + moveY + player.size / 2 < canvas.height) {
+                        player.y += moveY;
+                    }
+                    player.direction = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+                }
+            }
+        }
+
+        function moveMonster(monster) {
+            const dx = player.x - monster.x;
+            const dy = player.y - monster.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > 0) {
+                monster.x += (dx / distance) * monster.speed;
+                monster.y += (dy / distance) * monster.speed;
+            }
+        }
+
+        function moveBoss() {
+            if (!boss) return;
+            const dx = player.x - boss.x;
+            const dy = player.y - boss.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > 0) {
+                boss.x += (dx / distance) * boss.speed;
+                boss.y += (dy / distance) * boss.speed;
+            }
+        }
+
+        function checkCollision(obj1, obj2) {
+            const dx = obj1.x - obj2.x;
+            const dy = obj1.y - obj2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < (obj1.size / 2 + obj2.size / 2);
+        }
+
+        function checkWeaponHit(target) {
+            let weaponX = player.x;
+            let weaponY = player.y;
+            const weaponRange = 40;
+            if (player.direction === 'up') weaponY -= player.size / 2 + weaponRange / 2;
+            if (player.direction === 'down') weaponY += player.size / 2 + weaponRange / 2;
+            if (player.direction === 'left') weaponX -= player.size / 2 + weaponRange / 2;
+            if (player.direction === 'right') weaponX += player.size / 2 + weaponRange / 2;
+
+            const dx = weaponX - target.x;
+            const dy = weaponY - target.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < (weaponRange / 2 + target.size / 2);
+        }
+
+        function drawCircle(x, y, size, color) {
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawWeapon() {
+            if (!player.weaponActive) return;
+            ctx.fillStyle = '#ff9999';
+            let weaponX = player.x;
+            let weaponY = player.y;
+            const shaftLength = 40;
+            const shaftWidth = 10;
+            const tipSize = 15;
+
+            if (player.direction === 'up') {
+                ctx.fillRect(weaponX - shaftWidth / 2, weaponY - player.size / 2 - shaftLength, shaftWidth, shaftLength);
+                ctx.beginPath();
+                ctx.arc(weaponX, weaponY - player.size / 2 - shaftLength - tipSize / 2, tipSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (player.direction === 'down') {
+                ctx.fillRect(weaponX - shaftWidth / 2, weaponY + player.size / 2, shaftWidth, shaftLength);
+                ctx.beginPath();
+                ctx.arc(weaponX, weaponY + player.size / 2 + shaftLength + tipSize / 2, tipSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (player.direction === 'left') {
+                ctx.fillRect(weaponX - player.size / 2 - shaftLength, weaponY - shaftWidth / 2, shaftLength, shaftWidth);
+                ctx.beginPath();
+                ctx.arc(weaponX - player.size / 2 - shaftLength - tipSize / 2, weaponY, tipSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (player.direction === 'right') {
+                ctx.fillRect(weaponX + player.size / 2, weaponY - shaftWidth / 2, shaftLength, shaftWidth);
+                ctx.beginPath();
+                ctx.arc(weaponX + player.size / 2 + shaftLength + tipSize / 2, weaponY, tipSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawControls() {
+            controlsCtx.clearRect(0, 0, controlsCanvas.width, controlsCanvas.height);
+            controlsCtx.beginPath();
+            controlsCtx.arc(50, 50, 40, 0, Math.PI * 2);
+            controlsCtx.strokeStyle = 'white';
+            controlsCtx.stroke();
+            if (touch.active) {
+                const dx = touch.moveX - touch.startX;
+                const dy = touch.moveY - touch.startY;
+                const distance = Math.min(40, Math.sqrt(dx * dx + dy * dy));
+                const angle = Math.atan2(dy, dx);
+                controlsCtx.beginPath();
+                controlsCtx.arc(50 + Math.cos(angle) * distance, 50 + Math.sin(angle) * distance, 20, 0, Math.PI * 2);
+                controlsCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                controlsCtx.fill();
+            }
+        }
+
+        function gameLoop() {
+            movePlayer();
+            monsters.forEach(moveMonster);
+            moveBoss();
+
+            if (player.weaponCooldown > 0) player.weaponCooldown--;
+            if (player.weaponActive && player.weaponCooldown <= 10) player.weaponActive = false;
+
+            // Monster nur mit Waffe besiegen
+            monsters = monsters.filter(monster => {
+                if (player.weaponActive && checkWeaponHit(monster)) {
+                    score += 10;
+                    scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
+                    return false;
+                }
+                return true;
+            });
+
+            // Boss spawnen, wenn alle Monster besiegt sind
+            if (monsters.length === 0 && !boss) {
+                boss = {
+                    x: 700,
+                    y: 500,
+                    size: 64,
+                    speed: 2,
+                    color: 'purple',
+                    health: 9
+                };
+            }
+
+            if (boss) {
+                if (player.weaponActive && checkWeaponHit(boss)) {
+                    boss.health--;
+                    if (boss.health <= 0) {
+                        score += 50;
+                        scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
+                        alert('Boss besiegt! Du hast gewonnen!');
+                        resetGame();
+                    }
+                } else if (checkCollision(player, boss)) {
+                    player.hp--;
+                    if (player.hp <= 0) {
+                        alert('Game Over! Du hast verloren.');
+                        resetGame();
+                    } else {
+                        player.x = 400;
+                        player.y = 300;
+                        scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
+                    }
+                }
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawCircle(player.x, player.y, player.size, player.color);
+            monsters.forEach(monster => drawCircle(monster.x, monster.y, monster.size, monster.color));
+            if (boss) drawCircle(boss.x, boss.y, boss.size, boss.color);
+            drawWeapon();
+            drawControls();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetGame() {
+            player.x = 400;
+            player.y = 300;
+            player.hp = 5;
+            monsters = [];
+            for (let i = 0; i < 5; i++) {
+                monsters.push({
+                    x: Math.random() * (800 - 32),
+                    y: Math.random() * (600 - 32),
+                    size: 32,
+                    speed: 1,
+                    color: 'red'
+                });
+            }
+            boss = null;
+            score = 0;
+            scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
