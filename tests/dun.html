@@ -32,7 +32,7 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            display: none; /* Nur auf Mobile sichtbar */
+            display: none;
         }
         #attackButton {
             position: absolute;
@@ -45,7 +45,7 @@
             border: none;
             font-size: 20px;
             color: white;
-            display: none; /* Nur auf Mobile sichtbar */
+            display: none;
         }
         @media (max-width: 600px) or (pointer: coarse) {
             #controls, #attackButton {
@@ -95,7 +95,8 @@
                 y: Math.random() * (600 - 32),
                 size: 32,
                 speed: 1,
-                color: 'red'
+                color: 'red',
+                attackCooldown: 0 // Cooldown für Angriffe
             });
         }
 
@@ -213,7 +214,7 @@
         function checkWeaponHit(target) {
             let weaponX = player.x;
             let weaponY = player.y;
-            const weaponRange = 50; // Längere Reichweite für Schwert
+            const weaponRange = 50;
             if (player.direction === 'up') weaponY -= player.size / 2 + weaponRange / 2;
             if (player.direction === 'down') weaponY += player.size / 2 + weaponRange / 2;
             if (player.direction === 'left') weaponX -= player.size / 2 + weaponRange / 2;
@@ -235,7 +236,7 @@
 
         function drawSword() {
             if (!player.weaponActive) return;
-            ctx.fillStyle = '#cccccc'; // Silbergrau für Schwert
+            ctx.fillStyle = '#cccccc';
             let swordX = player.x;
             let swordY = player.y;
             const bladeLength = 50;
@@ -244,8 +245,8 @@
             const hiltWidth = 20;
 
             if (player.direction === 'up') {
-                ctx.fillRect(swordX - bladeWidth / 2, swordY - player.size / 2 - bladeLength, bladeWidth, bladeLength); // Klinge
-                ctx.fillRect(swordX - hiltWidth / 2, swordY - player.size / 2 - hiltLength, hiltWidth, hiltLength); // Heft
+                ctx.fillRect(swordX - bladeWidth / 2, swordY - player.size / 2 - bladeLength, bladeWidth, bladeLength);
+                ctx.fillRect(swordX - hiltWidth / 2, swordY - player.size / 2 - hiltLength, hiltWidth, hiltLength);
             } else if (player.direction === 'down') {
                 ctx.fillRect(swordX - bladeWidth / 2, swordY + player.size / 2, bladeWidth, bladeLength);
                 ctx.fillRect(swordX - hiltWidth / 2, swordY + player.size / 2, hiltWidth, hiltLength);
@@ -284,15 +285,30 @@
             if (player.weaponCooldown > 0) player.weaponCooldown--;
             if (player.weaponActive && player.weaponCooldown <= 10) player.weaponActive = false;
 
+            // Monster angreifen
             monsters = monsters.filter(monster => {
                 if (player.weaponActive && checkWeaponHit(monster)) {
                     score += 10;
                     scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
                     return false;
                 }
+                if (checkCollision(player, monster)) {
+                    if (monster.attackCooldown <= 0) {
+                        player.hp--;
+                        monster.attackCooldown = 60; // 1 Sekunde Cooldown (bei ~60 FPS)
+                        if (player.hp <= 0) {
+                            alert('Game Over! Du hast verloren.');
+                            resetGame();
+                        } else {
+                            scoreDisplay.textContent = `Score: ${score} | HP: ${player.hp}`;
+                        }
+                    }
+                }
+                if (monster.attackCooldown > 0) monster.attackCooldown--;
                 return true;
             });
 
+            // Boss spawnen und angreifen
             if (monsters.length === 0 && !boss) {
                 boss = {
                     x: 700,
@@ -347,7 +363,8 @@
                     y: Math.random() * (600 - 32),
                     size: 32,
                     speed: 1,
-                    color: 'red'
+                    color: 'red',
+                    attackCooldown: 0
                 });
             }
             boss = null;
