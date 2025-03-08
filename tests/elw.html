@@ -27,8 +27,8 @@
 
         // Spielkonstanten
         const HEX_SIZE = 20;
-        const MAP_WIDTH = 24;
-        const MAP_HEIGHT = 15;
+        const MAP_WIDTH = 20;  // Reduziert für bessere Sichtbarkeit
+        const MAP_HEIGHT = 18; // Passt besser zur Canvas-Größe
         const NATIONS = ['Air', 'Earth', 'Water', 'Fire'];
         const COLORS = {
             'Air': '#b0e0e6', 'Earth': '#8b4513', 
@@ -55,7 +55,7 @@
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
-                this.type = type; // 'plain', 'mountain', 'gold', 'temple'
+                this.type = type;
                 this.owner = null;
                 this.unit = null;
                 this.improvement = null;
@@ -75,13 +75,14 @@
         function initGame() {
             // Spieler erstellen
             gameState.players = [
-                new Player('Air', document.getElementById('p1').value === 'ai'),
-                new Player('Earth', document.getElementById('p2').value === 'ai'),
-                new Player('Water', document.getElementById('p3').value === 'ai'),
-                new Player('Fire', document.getElementById('p4').value === 'ai')
+                new Player('Air', document.getElementById('p1')?.value === 'ai'),
+                new Player('Earth', document.getElementById('p2')?.value === 'ai'),
+                new Player('Water', document.getElementById('p3')?.value === 'ai'),
+                new Player('Fire', document.getElementById('p4')?.value === 'ai')
             ];
 
             // Karte generieren
+            gameState.map = [];
             for (let y = 0; y < MAP_HEIGHT; y++) {
                 gameState.map[y] = [];
                 for (let x = 0; x < MAP_WIDTH; x++) {
@@ -94,7 +95,6 @@
             }
 
             // Tempel und Startpositionen
-            const temples = [];
             NATIONS.forEach((nation, i) => {
                 let tx, ty;
                 do {
@@ -104,7 +104,6 @@
                 
                 gameState.map[ty][tx].type = 'temple';
                 gameState.map[ty][tx].owner = i;
-                temples.push({x: tx, y: ty});
             });
 
             drawMap();
@@ -132,8 +131,8 @@
             for (let y = 0; y < MAP_HEIGHT; y++) {
                 for (let x = 0; x < MAP_WIDTH; x++) {
                     const hex = gameState.map[y][x];
-                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 50;
-                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 50;
+                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 20;
+                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 20;
                     
                     let color = '#666';
                     if (hex.type === 'mountain') color = '#999';
@@ -155,6 +154,7 @@
         // Spiel-Logik
         function updateInfo() {
             const p = gameState.players[gameState.currentPlayer];
+            if (!p) return;
             infoDiv.innerHTML = `
                 Current Player: ${p.nation}<br>
                 Gold: ${p.gold}<br>
@@ -189,7 +189,6 @@
         }
 
         function endTurn() {
-            // Gold von Minen sammeln
             let income = 0;
             gameState.map.flat().forEach(hex => {
                 if (hex.owner === gameState.currentPlayer && hex.type === 'gold') income += 10;
@@ -205,7 +204,6 @@
         }
 
         function aiTurn() {
-            // Einfache KI: kauft Einheiten und verbessert Felder zufällig
             const p = gameState.players[gameState.currentPlayer];
             const ownedHexes = gameState.map.flat().filter(h => h.owner === gameState.currentPlayer);
             
@@ -228,8 +226,8 @@
             
             for (let y = 0; y < MAP_HEIGHT; y++) {
                 for (let x = 0; x < MAP_WIDTH; x++) {
-                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 50;
-                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 50;
+                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 20;
+                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 20;
                     if (Math.hypot(mx - px, my - py) < HEX_SIZE) {
                         gameState.selectedHex = gameState.map[y][x];
                         drawMap();
@@ -240,17 +238,18 @@
             }
         });
 
-        // Spieler-Auswahl UI
-        document.body.innerHTML += `
-            <div style="position: absolute; top: 10px; left: 10px; color: white;">
-                <select id="p1"><option value="human">Air: Human</option><option value="ai">Air: AI</option></select><br>
-                <select id="p2"><option value="human">Earth: Human</option><option value="ai">Earth: AI</option></select><br>
-                <select id="p3"><option value="human">Water: Human</option><option value="ai">Water: AI</option></select><br>
-                <select id="p4"><option value="human">Fire: Human</option><option value="ai">Fire: AI</option></select><br>
-                <button onclick="initGame()">Start Game</button>
-            </div>
-        `;
-
+        // Spieler-Auswahl UI (am Ende hinzufügen, um sicherzustellen, dass DOM geladen ist)
+        window.onload = () => {
+            document.body.innerHTML += `
+                <div style="position: absolute; top: 10px; left: 10px; color: white;">
+                    <select id="p1"><option value="human">Air: Human</option><option value="ai">Air: AI</option></select><br>
+                    <select id="p2"><option value="human">Earth: Human</option><option value="ai">Earth: AI</option></select><br>
+                    <select id="p3"><option value="human">Water: Human</option><option value="ai">Water: AI</option></select><br>
+                    <select id="p4"><option value="human">Fire: Human</option><option value="ai">Fire: AI</option></select><br>
+                    <button onclick="initGame()">Start Game</button>
+                </div>
+            `;
+        };
     </script>
 </body>
 </html>
