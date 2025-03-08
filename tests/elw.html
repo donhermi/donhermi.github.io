@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Elemental Hex Wars</title>
+    <title>Elementale Gitterkriege</title>
     <style>
         canvas { border: 1px solid black; background: #1a1a1a; }
         #gameInfo { 
@@ -9,16 +9,18 @@
             color: white; 
             position: absolute; 
             top: 10px; 
-            left: 820px; 
+            left: 620px; 
             background: rgba(0,0,0,0.7); 
             padding: 10px;
+            width: 300px;
         }
         body { background: #111; margin: 0; }
-        select, button { margin: 5px; padding: 5px; }
+        button { margin: 5px; padding: 5px; }
+        #combatLog { margin-top: 10px; font-size: 12px; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
     <div id="gameInfo"></div>
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -26,21 +28,56 @@
         const infoDiv = document.getElementById('gameInfo');
 
         // Spielkonstanten
-        const HEX_SIZE = 20;
-        const MAP_WIDTH = 20;  // Reduziert für bessere Sichtbarkeit
-        const MAP_HEIGHT = 18; // Passt besser zur Canvas-Größe
-        const NATIONS = ['Air', 'Earth', 'Water', 'Fire'];
+        const TILE_SIZE = 30;
+        const MAP_WIDTH = 20;
+        const MAP_HEIGHT = 20;
+        const NATIONS = ['Luft', 'Erde', 'Wasser', 'Feuer'];
         const COLORS = {
-            'Air': '#b0e0e6', 'Earth': '#8b4513', 
-            'Water': '#4169e1', 'Fire': '#ff4500'
+            'Luft': '#b0e0e6', 'Erde': '#8b4513', 
+            'Wasser': '#4169e1', 'Feuer': '#ff4500'
         };
 
-        // Einheiten-Templates
         const UNITS = {
-            'Air': { name: 'Wind Rider', cost: 50, atk: 30, def: 20, speed: 3 },
-            'Earth': { name: 'Stone Golem', cost: 70, atk: 40, def: 50, speed: 1 },
-            'Water': { name: 'Tidal Warrior', cost: 60, atk: 35, def: 30, speed: 2 },
-            'Fire': { name: 'Flame Spirit', cost: 55, atk: 45, def: 25, speed: 2 }
+            'Luft': { 
+                name: 'Windreiter', 
+                cost: 50, 
+                atk: 30, 
+                def: 20, 
+                speed: 3, 
+                moved: false,
+                strengths: ['Feuer'],
+                weaknesses: ['Erde']
+            },
+            'Erde': { 
+                name: 'Steingolem', 
+                cost: 70, 
+                atk: 40, 
+                def: 50, 
+                speed: 1, 
+                moved: false,
+                strengths: ['Luft'],
+                weaknesses: ['Wasser']
+            },
+            'Wasser': { 
+                name: 'Gezeitenkrieger', 
+                cost: 60, 
+                atk: 35, 
+                def: 30, 
+                speed: 2, 
+                moved: false,
+                strengths: ['Feuer', 'Erde'],
+                weaknesses: []
+            },
+            'Feuer': { 
+                name: 'Flammengeist', 
+                cost: 55, 
+                atk: 45, 
+                def: 25, 
+                speed: 2, 
+                moved: false,
+                strengths: [],
+                weaknesses: ['Luft', 'Wasser']
+            }
         };
 
         // Spielzustand
@@ -48,10 +85,11 @@
             map: [],
             players: [],
             currentPlayer: 0,
-            selectedHex: null
+            selectedTile: null,
+            combatLog: ''
         };
 
-        class Hex {
+        class Tile {
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
@@ -73,37 +111,37 @@
 
         // Initialisierung
         function initGame() {
-            // Spieler erstellen
             gameState.players = [
-                new Player('Air', document.getElementById('p1')?.value === 'ai'),
-                new Player('Earth', document.getElementById('p2')?.value === 'ai'),
-                new Player('Water', document.getElementById('p3')?.value === 'ai'),
-                new Player('Fire', document.getElementById('p4')?.value === 'ai')
+                new Player('Luft', false),
+                new Player('Erde', true),
+                new Player('Wasser', true),
+                new Player('Feuer', true)
             ];
 
-            // Karte generieren
             gameState.map = [];
             for (let y = 0; y < MAP_HEIGHT; y++) {
                 gameState.map[y] = [];
                 for (let x = 0; x < MAP_WIDTH; x++) {
                     const rand = Math.random();
-                    let type = 'plain';
-                    if (rand < 0.1) type = 'gold';
-                    else if (rand < 0.25) type = 'mountain';
-                    gameState.map[y][x] = new Hex(x, y, type);
+                    let type = 'Ebene';
+                    if (rand < 0.1) type = 'Goldmine';
+                    else if (rand < 0.25) type = 'Berg';
+                    gameState.map[y][x] = new Tile(x, y, type);
                 }
             }
 
-            // Tempel und Startpositionen
             NATIONS.forEach((nation, i) => {
                 let tx, ty;
                 do {
                     tx = Math.floor(Math.random() * MAP_WIDTH);
                     ty = Math.floor(Math.random() * MAP_HEIGHT);
-                } while (gameState.map[ty][tx].type !== (nation === 'Air' ? 'mountain' : 'plain'));
+                } while (gameState.map[ty][tx].type !== (nation === 'Luft' ? 'Berg' : 'Ebene'));
                 
-                gameState.map[ty][tx].type = 'temple';
+                gameState.map[ty][tx].type = 'Tempel';
                 gameState.map[ty][tx].owner = i;
+                gameState.map[ty][tx].unit = { ...UNITS[nation] };
+                gameState.map[ty][tx].improvement = 'Kaserne';
+                gameState.players[i].units.push(gameState.map[ty][tx]);
             });
 
             drawMap();
@@ -111,42 +149,29 @@
         }
 
         // Zeichnen
-        function drawHex(x, y, fill) {
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i;
-                const px = x + HEX_SIZE * Math.cos(angle);
-                const py = y + HEX_SIZE * Math.sin(angle);
-                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-            }
-            ctx.closePath();
+        function drawTile(x, y, fill) {
             ctx.fillStyle = fill;
-            ctx.fill();
+            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
             ctx.strokeStyle = '#333';
-            ctx.stroke();
+            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         }
 
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             for (let y = 0; y < MAP_HEIGHT; y++) {
                 for (let x = 0; x < MAP_WIDTH; x++) {
-                    const hex = gameState.map[y][x];
-                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 20;
-                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 20;
-                    
+                    const tile = gameState.map[y][x];
                     let color = '#666';
-                    if (hex.type === 'mountain') color = '#999';
-                    else if (hex.type === 'gold') color = '#ffd700';
-                    else if (hex.type === 'temple') color = '#ffa500';
-                    if (hex.owner !== null) color = COLORS[NATIONS[hex.owner]];
-                    if (gameState.selectedHex === hex) color = '#ffffff';
+                    if (tile.type === 'Berg') color = '#999';
+                    else if (tile.type === 'Goldmine') color = '#ffd700';
+                    else if (tile.type === 'Tempel') color = '#ffa500';
+                    if (tile.owner !== null) color = COLORS[NATIONS[tile.owner]];
+                    if (gameState.selectedTile === tile) color = '#ffffff';
                     
-                    drawHex(px, py, color);
+                    drawTile(x, y, color);
                     
-                    if (hex.unit) {
-                        ctx.fillStyle = 'black';
-                        ctx.fillText('U', px-3, py+5);
-                    }
+                    if (tile.unit) ctx.fillStyle = 'black', ctx.fillText('E', x * TILE_SIZE + 10, y * TILE_SIZE + 20);
+                    if (tile.improvement === 'Kaserne') ctx.fillStyle = 'white', ctx.fillText('K', x * TILE_SIZE + 5, y * TILE_SIZE + 15);
                 }
             }
         }
@@ -154,35 +179,143 @@
         // Spiel-Logik
         function updateInfo() {
             const p = gameState.players[gameState.currentPlayer];
-            if (!p) return;
             infoDiv.innerHTML = `
-                Current Player: ${p.nation}<br>
+                Aktueller Spieler: ${p.nation} ${p.isAI ? '(KI)' : ''}<br>
                 Gold: ${p.gold}<br>
-                Units: ${p.units.length}<br>
-                <button onclick="buyUnit()">Buy ${UNITS[p.nation].name} (${UNITS[p.nation].cost}g)</button><br>
-                <button onclick="improveHex()">Improve Hex (100g)</button><br>
-                <button onclick="endTurn()">End Turn</button>
+                Einheiten: ${p.units.length}<br>
+                <button onclick="buyUnit()">${UNITS[p.nation].name} kaufen (${UNITS[p.nation].cost}g)</button><br>
+                <button onclick="moveUnit()">Einheit bewegen</button><br>
+                <button onclick="buildBarracks()">Kaserne bauen (150g)</button><br>
+                <button onclick="endTurn()">Zug beenden</button>
+                <div id="combatLog">${gameState.combatLog}</div>
             `;
         }
 
         function buyUnit() {
             const p = gameState.players[gameState.currentPlayer];
-            if (!gameState.selectedHex || gameState.selectedHex.owner !== gameState.currentPlayer) return;
-            if (p.gold >= UNITS[p.nation].cost && !gameState.selectedHex.unit) {
+            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement !== 'Kaserne') return;
+            if (p.gold >= UNITS[p.nation].cost && !gameState.selectedTile.unit) {
                 p.gold -= UNITS[p.nation].cost;
-                gameState.selectedHex.unit = {...UNITS[p.nation]};
-                p.units.push(gameState.selectedHex);
+                gameState.selectedTile.unit = { ...UNITS[p.nation] };
+                p.units.push(gameState.selectedTile);
                 drawMap();
                 updateInfo();
             }
         }
 
-        function improveHex() {
+        function calculateCombat(attacker, defender, defenderTile) {
+            let atkPower = attacker.atk;
+            let defPower = defender.def * (defenderTile.type === 'Berg' ? 1.5 : 1);
+            const attackerNation = NATIONS[gameState.currentPlayer];
+            const defenderNation = NATIONS[defenderTile.owner];
+            
+            let log = `Kampf: ${attacker.name} (ANG: ${atkPower}) vs ${defender.name} (VER: ${defPower})<br>`;
+            
+            if (attacker.strengths.includes(defenderNation)) {
+                atkPower *= 1.5;
+                log += `${attackerNation} stark gegen ${defenderNation}: ANG x1.5 = ${atkPower.toFixed(1)}<br>`;
+            }
+            if (attacker.weaknesses.includes(defenderNation)) {
+                atkPower *= 0.75;
+                log += `${attackerNation} schwach gegen ${defenderNation}: ANG x0.75 = ${atkPower.toFixed(1)}<br>`;
+            }
+            if (defender.strengths.includes(attackerNation)) {
+                defPower *= 1.5;
+                log += `${defenderNation} stark gegen ${attackerNation}: VER x1.5 = ${defPower.toFixed(1)}<br>`;
+            }
+            if (defender.weaknesses.includes(attackerNation)) {
+                defPower *= 0.75;
+                log += `${defenderNation} schwach gegen ${attackerNation}: VER x0.75 = ${defPower.toFixed(1)}<br>`;
+            }
+            if (defenderTile.type === 'Berg') {
+                log += `Bergbonus: VER x1.5 = ${defPower.toFixed(1)}<br>`;
+            }
+
+            const totalPower = atkPower + defPower;
+            const winChance = atkPower / totalPower;
+            const roll = Math.random();
+            const attackerWins = roll < winChance;
+            
+            log += `Siegwahrscheinlichkeit: ${(winChance * 100).toFixed(1)}% | Würfel: ${(roll * 100).toFixed(1)}%<br>`;
+            log += attackerWins 
+                ? `${attacker.name} besiegt ${defender.name} und besiedelt das Land!` 
+                : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
+            gameState.combatLog = log;
+
+            return attackerWins;
+        }
+
+        function settleLand(unit, tile) {
+            const nation = NATIONS[gameState.currentPlayer];
+            let log = `Besiedlung: ${unit.name} erobert das Land!<br>`;
+            log += `Das Feld (${tile.x}, ${tile.y}) gehört jetzt ${nation}.<br>`;
+            log += `Die Einheit ${unit.name} hat das Land besiedelt und zieht sich zurück.`;
+            gameState.combatLog = log;
+        }
+
+        function moveUnit() {
             const p = gameState.players[gameState.currentPlayer];
-            if (!gameState.selectedHex || gameState.selectedHex.owner !== gameState.currentPlayer) return;
-            if (p.gold >= 100 && !gameState.selectedHex.improvement) {
-                p.gold -= 100;
-                gameState.selectedHex.improvement = p.nation + '_fort';
+            if (!gameState.selectedTile || !gameState.selectedTile.unit || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.unit.moved) return;
+
+            const unit = gameState.selectedTile.unit;
+            const speed = unit.speed;
+            const oldTile = gameState.selectedTile;
+
+            canvas.addEventListener('click', function moveHandler(e) {
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const x = Math.floor(mx / TILE_SIZE);
+                const y = Math.floor(my / TILE_SIZE);
+
+                if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+                    const newTile = gameState.map[y][x];
+                    const distance = Math.max(Math.abs(newTile.x - oldTile.x), Math.abs(newTile.y - oldTile.y));
+                    
+                    if (distance <= speed) {
+                        if (newTile.owner === gameState.currentPlayer && !newTile.unit) { // Eigenes leeres Feld
+                            newTile.unit = unit;
+                            oldTile.unit = null;
+                            unit.moved = true;
+                        } else if (!newTile.owner) { // Neutrales Feld (Besiedlung)
+                            newTile.owner = gameState.currentPlayer;
+                            oldTile.unit = null;
+                            p.units = p.units.filter(t => t !== oldTile);
+                            unit.moved = true;
+                            settleLand(unit, newTile);
+                        } else if (newTile.owner !== gameState.currentPlayer) { // Gegnerisches Feld
+                            if (newTile.unit) { // Kampf
+                                if (calculateCombat(unit, newTile.unit, newTile)) {
+                                    newTile.owner = gameState.currentPlayer;
+                                    newTile.unit = null;
+                                    gameState.players[newTile.owner].units = gameState.players[newTile.owner].units.filter(t => t !== newTile);
+                                }
+                                oldTile.unit = null;
+                                p.units = p.units.filter(t => t !== oldTile);
+                                unit.moved = true;
+                            } else { // Leeres gegnerisches Feld (Besiedlung)
+                                newTile.owner = gameState.currentPlayer;
+                                oldTile.unit = null;
+                                p.units = p.units.filter(t => t !== oldTile);
+                                unit.moved = true;
+                                settleLand(unit, newTile);
+                            }
+                        }
+                        gameState.selectedTile = null;
+                        drawMap();
+                        updateInfo();
+                    }
+                }
+                canvas.removeEventListener('click', moveHandler);
+            }, { once: true });
+        }
+
+        function buildBarracks() {
+            const p = gameState.players[gameState.currentPlayer];
+            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement) return;
+            if (p.gold >= 150) {
+                p.gold -= 150;
+                gameState.selectedTile.improvement = 'Kaserne';
                 drawMap();
                 updateInfo();
             }
@@ -190,28 +323,85 @@
 
         function endTurn() {
             let income = 0;
-            gameState.map.flat().forEach(hex => {
-                if (hex.owner === gameState.currentPlayer && hex.type === 'gold') income += 10;
+            gameState.map.flat().forEach(tile => {
+                if (tile.owner === gameState.currentPlayer && tile.type === 'Goldmine') income += 10;
             });
             gameState.players[gameState.currentPlayer].gold += income;
             
+            gameState.players[gameState.currentPlayer].units.forEach(tile => {
+                if (tile.unit) tile.unit.moved = false;
+            });
+
             gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
-            gameState.selectedHex = null;
+            gameState.selectedTile = null;
+            gameState.combatLog = '';
             drawMap();
             updateInfo();
             
-            if (gameState.players[gameState.currentPlayer].isAI) aiTurn();
+            if (gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 1000);
         }
 
         function aiTurn() {
             const p = gameState.players[gameState.currentPlayer];
-            const ownedHexes = gameState.map.flat().filter(h => h.owner === gameState.currentPlayer);
+            const ownedTiles = gameState.map.flat().filter(t => t.owner === gameState.currentPlayer);
             
+            if (Math.random() < 0.3 && p.gold >= 150) {
+                const emptyTile = ownedTiles.find(t => !t.improvement);
+                if (emptyTile) {
+                    gameState.selectedTile = emptyTile;
+                    buildBarracks();
+                }
+            }
+
             if (Math.random() < 0.5 && p.gold >= UNITS[p.nation].cost) {
-                const emptyHex = ownedHexes.find(h => !h.unit);
-                if (emptyHex) {
-                    gameState.selectedHex = emptyHex;
+                const barracksTile = ownedTiles.find(t => t.improvement === 'Kaserne' && !t.unit);
+                if (barracksTile) {
+                    gameState.selectedTile = barracksTile;
                     buyUnit();
+                }
+            }
+
+            const unitTile = ownedTiles.find(t => t.unit && !t.unit.moved);
+            if (unitTile) {
+                gameState.selectedTile = unitTile;
+                const unit = unitTile.unit;
+                const possibleMoves = [];
+                for (let y = 0; y < MAP_HEIGHT; y++) {
+                    for (let x = 0; x < MAP_WIDTH; x++) {
+                        const dist = Math.max(Math.abs(x - unitTile.x), Math.abs(y - unitTile.y));
+                        if (dist <= unit.speed) possibleMoves.push(gameState.map[y][x]);
+                    }
+                }
+                if (possibleMoves.length > 0) {
+                    const target = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                    if (target.owner === gameState.currentPlayer && !target.unit) {
+                        target.unit = unit;
+                        unitTile.unit = null;
+                        unit.moved = true;
+                    } else if (!target.owner) {
+                        target.owner = gameState.currentPlayer;
+                        unitTile.unit = null;
+                        p.units = p.units.filter(t => t !== unitTile);
+                        unit.moved = true;
+                        settleLand(unit, target);
+                    } else if (target.owner !== gameState.currentPlayer) {
+                        if (target.unit) {
+                            if (calculateCombat(unit, target.unit, target)) {
+                                target.owner = gameState.currentPlayer;
+                                target.unit = null;
+                                gameState.players[target.owner].units = gameState.players[target.owner].units.filter(t => t !== target);
+                            }
+                            unitTile.unit = null;
+                            p.units = p.units.filter(t => t !== unitTile);
+                            unit.moved = true;
+                        } else {
+                            target.owner = gameState.currentPlayer;
+                            unitTile.unit = null;
+                            p.units = p.units.filter(t => t !== unitTile);
+                            unit.moved = true;
+                            settleLand(unit, target);
+                        }
+                    }
                 }
             }
             
@@ -223,33 +413,18 @@
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
+            const x = Math.floor(mx / TILE_SIZE);
+            const y = Math.floor(my / TILE_SIZE);
             
-            for (let y = 0; y < MAP_HEIGHT; y++) {
-                for (let x = 0; x < MAP_WIDTH; x++) {
-                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 20;
-                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 20;
-                    if (Math.hypot(mx - px, my - py) < HEX_SIZE) {
-                        gameState.selectedHex = gameState.map[y][x];
-                        drawMap();
-                        updateInfo();
-                        return;
-                    }
-                }
+            if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+                gameState.selectedTile = gameState.map[y][x];
+                drawMap();
+                updateInfo();
             }
         });
 
-        // Spieler-Auswahl UI (am Ende hinzufügen, um sicherzustellen, dass DOM geladen ist)
-        window.onload = () => {
-            document.body.innerHTML += `
-                <div style="position: absolute; top: 10px; left: 10px; color: white;">
-                    <select id="p1"><option value="human">Air: Human</option><option value="ai">Air: AI</option></select><br>
-                    <select id="p2"><option value="human">Earth: Human</option><option value="ai">Earth: AI</option></select><br>
-                    <select id="p3"><option value="human">Water: Human</option><option value="ai">Water: AI</option></select><br>
-                    <select id="p4"><option value="human">Fire: Human</option><option value="ai">Fire: AI</option></select><br>
-                    <button onclick="initGame()">Start Game</button>
-                </div>
-            `;
-        };
+        // Spiel starten
+        initGame();
     </script>
 </body>
 </html>
