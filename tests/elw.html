@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Elemental Hex Wars</title>
+    <style>
+        canvas { border: 1px solid black; background: #1a1a1a; }
+        #gameInfo { 
+            font-family: Arial; 
+            color: white; 
+            position: absolute; 
+            top: 10px; 
+            left: 820px; 
+            background: rgba(0,0,0,0.7); 
+            padding: 10px;
+        }
+        body { background: #111; margin: 0; }
+        select, button { margin: 5px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="gameInfo"></div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const infoDiv = document.getElementById('gameInfo');
+
+        // Spielkonstanten
+        const HEX_SIZE = 20;
+        const MAP_WIDTH = 24;
+        const MAP_HEIGHT = 15;
+        const NATIONS = ['Air', 'Earth', 'Water', 'Fire'];
+        const COLORS = {
+            'Air': '#b0e0e6', 'Earth': '#8b4513', 
+            'Water': '#4169e1', 'Fire': '#ff4500'
+        };
+
+        // Einheiten-Templates
+        const UNITS = {
+            'Air': { name: 'Wind Rider', cost: 50, atk: 30, def: 20, speed: 3 },
+            'Earth': { name: 'Stone Golem', cost: 70, atk: 40, def: 50, speed: 1 },
+            'Water': { name: 'Tidal Warrior', cost: 60, atk: 35, def: 30, speed: 2 },
+            'Fire': { name: 'Flame Spirit', cost: 55, atk: 45, def: 25, speed: 2 }
+        };
+
+        // Spielzustand
+        let gameState = {
+            map: [],
+            players: [],
+            currentPlayer: 0,
+            selectedHex: null
+        };
+
+        class Hex {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'plain', 'mountain', 'gold', 'temple'
+                this.owner = null;
+                this.unit = null;
+                this.improvement = null;
+            }
+        }
+
+        class Player {
+            constructor(nation, isAI) {
+                this.nation = nation;
+                this.isAI = isAI;
+                this.gold = 100;
+                this.units = [];
+            }
+        }
+
+        // Initialisierung
+        function initGame() {
+            // Spieler erstellen
+            gameState.players = [
+                new Player('Air', document.getElementById('p1').value === 'ai'),
+                new Player('Earth', document.getElementById('p2').value === 'ai'),
+                new Player('Water', document.getElementById('p3').value === 'ai'),
+                new Player('Fire', document.getElementById('p4').value === 'ai')
+            ];
+
+            // Karte generieren
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                gameState.map[y] = [];
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const rand = Math.random();
+                    let type = 'plain';
+                    if (rand < 0.1) type = 'gold';
+                    else if (rand < 0.25) type = 'mountain';
+                    gameState.map[y][x] = new Hex(x, y, type);
+                }
+            }
+
+            // Tempel und Startpositionen
+            const temples = [];
+            NATIONS.forEach((nation, i) => {
+                let tx, ty;
+                do {
+                    tx = Math.floor(Math.random() * MAP_WIDTH);
+                    ty = Math.floor(Math.random() * MAP_HEIGHT);
+                } while (gameState.map[ty][tx].type !== (nation === 'Air' ? 'mountain' : 'plain'));
+                
+                gameState.map[ty][tx].type = 'temple';
+                gameState.map[ty][tx].owner = i;
+                temples.push({x: tx, y: ty});
+            });
+
+            drawMap();
+            updateInfo();
+        }
+
+        // Zeichnen
+        function drawHex(x, y, fill) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const px = x + HEX_SIZE * Math.cos(angle);
+                const py = y + HEX_SIZE * Math.sin(angle);
+                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+        }
+
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const hex = gameState.map[y][x];
+                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 50;
+                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 50;
+                    
+                    let color = '#666';
+                    if (hex.type === 'mountain') color = '#999';
+                    else if (hex.type === 'gold') color = '#ffd700';
+                    else if (hex.type === 'temple') color = '#ffa500';
+                    if (hex.owner !== null) color = COLORS[NATIONS[hex.owner]];
+                    if (gameState.selectedHex === hex) color = '#ffffff';
+                    
+                    drawHex(px, py, color);
+                    
+                    if (hex.unit) {
+                        ctx.fillStyle = 'black';
+                        ctx.fillText('U', px-3, py+5);
+                    }
+                }
+            }
+        }
+
+        // Spiel-Logik
+        function updateInfo() {
+            const p = gameState.players[gameState.currentPlayer];
+            infoDiv.innerHTML = `
+                Current Player: ${p.nation}<br>
+                Gold: ${p.gold}<br>
+                Units: ${p.units.length}<br>
+                <button onclick="buyUnit()">Buy ${UNITS[p.nation].name} (${UNITS[p.nation].cost}g)</button><br>
+                <button onclick="improveHex()">Improve Hex (100g)</button><br>
+                <button onclick="endTurn()">End Turn</button>
+            `;
+        }
+
+        function buyUnit() {
+            const p = gameState.players[gameState.currentPlayer];
+            if (!gameState.selectedHex || gameState.selectedHex.owner !== gameState.currentPlayer) return;
+            if (p.gold >= UNITS[p.nation].cost && !gameState.selectedHex.unit) {
+                p.gold -= UNITS[p.nation].cost;
+                gameState.selectedHex.unit = {...UNITS[p.nation]};
+                p.units.push(gameState.selectedHex);
+                drawMap();
+                updateInfo();
+            }
+        }
+
+        function improveHex() {
+            const p = gameState.players[gameState.currentPlayer];
+            if (!gameState.selectedHex || gameState.selectedHex.owner !== gameState.currentPlayer) return;
+            if (p.gold >= 100 && !gameState.selectedHex.improvement) {
+                p.gold -= 100;
+                gameState.selectedHex.improvement = p.nation + '_fort';
+                drawMap();
+                updateInfo();
+            }
+        }
+
+        function endTurn() {
+            // Gold von Minen sammeln
+            let income = 0;
+            gameState.map.flat().forEach(hex => {
+                if (hex.owner === gameState.currentPlayer && hex.type === 'gold') income += 10;
+            });
+            gameState.players[gameState.currentPlayer].gold += income;
+            
+            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+            gameState.selectedHex = null;
+            drawMap();
+            updateInfo();
+            
+            if (gameState.players[gameState.currentPlayer].isAI) aiTurn();
+        }
+
+        function aiTurn() {
+            // Einfache KI: kauft Einheiten und verbessert Felder zufällig
+            const p = gameState.players[gameState.currentPlayer];
+            const ownedHexes = gameState.map.flat().filter(h => h.owner === gameState.currentPlayer);
+            
+            if (Math.random() < 0.5 && p.gold >= UNITS[p.nation].cost) {
+                const emptyHex = ownedHexes.find(h => !h.unit);
+                if (emptyHex) {
+                    gameState.selectedHex = emptyHex;
+                    buyUnit();
+                }
+            }
+            
+            setTimeout(endTurn, 1000);
+        }
+
+        // Event-Handling
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const px = x * HEX_SIZE * 1.5 + (y % 2 ? HEX_SIZE * 0.75 : 0) + 50;
+                    const py = y * HEX_SIZE * Math.sqrt(3) / 2 + 50;
+                    if (Math.hypot(mx - px, my - py) < HEX_SIZE) {
+                        gameState.selectedHex = gameState.map[y][x];
+                        drawMap();
+                        updateInfo();
+                        return;
+                    }
+                }
+            }
+        });
+
+        // Spieler-Auswahl UI
+        document.body.innerHTML += `
+            <div style="position: absolute; top: 10px; left: 10px; color: white;">
+                <select id="p1"><option value="human">Air: Human</option><option value="ai">Air: AI</option></select><br>
+                <select id="p2"><option value="human">Earth: Human</option><option value="ai">Earth: AI</option></select><br>
+                <select id="p3"><option value="human">Water: Human</option><option value="ai">Water: AI</option></select><br>
+                <select id="p4"><option value="human">Fire: Human</option><option value="ai">Fire: AI</option></select><br>
+                <button onclick="initGame()">Start Game</button>
+            </div>
+        `;
+
+    </script>
+</body>
+</html>
