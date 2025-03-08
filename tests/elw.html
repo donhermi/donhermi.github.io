@@ -113,9 +113,9 @@
         function initGame() {
             gameState.players = [
                 new Player('Luft', false),
-                new Player('Erde', true),
-                new Player('Wasser', true),
-                new Player('Feuer', true)
+                new Player('Erde', false),
+                new Player('Wasser', false),
+                new Player('Feuer', false)
             ];
 
             gameState.map = [];
@@ -179,6 +179,7 @@
         // Spiel-Logik
         function updateInfo() {
             const p = gameState.players[gameState.currentPlayer];
+            const toggleText = p.isAI ? 'Nation wieder übernehmen' : 'Nation an Verwalter (KI) übergeben';
             infoDiv.innerHTML = `
                 Aktueller Spieler: ${p.nation} ${p.isAI ? '(KI)' : ''}<br>
                 Gold: ${p.gold}<br>
@@ -186,9 +187,17 @@
                 <button onclick="buyUnit()">${UNITS[p.nation].name} kaufen (${UNITS[p.nation].cost}g)</button><br>
                 <button onclick="moveUnit()">Einheit bewegen</button><br>
                 <button onclick="buildBarracks()">Kaserne bauen (150g)</button><br>
+                <button onclick="toggleAI()">${toggleText}</button><br>
                 <button onclick="endTurn()">Zug beenden</button>
                 <div id="combatLog">${gameState.combatLog}</div>
             `;
+        }
+
+        function toggleAI() {
+            const p = gameState.players[gameState.currentPlayer];
+            p.isAI = !p.isAI;
+            updateInfo();
+            if (p.isAI) endTurn();
         }
 
         function buyUnit() {
@@ -274,9 +283,9 @@
                     
                     if (distance <= speed) {
                         if (newTile.owner === gameState.currentPlayer && !newTile.unit) { // Eigenes leeres Feld
-                            newTile.unit = unit;
+                            newTile.unit = unit; // Einheit direkt übernehmen
                             oldTile.unit = null;
-                            unit.moved = true;
+                            unit.moved = true; // Markieren als bewegt
                         } else if (!newTile.owner) { // Neutrales Feld (Besiedlung)
                             newTile.owner = gameState.currentPlayer;
                             oldTile.unit = null;
@@ -304,6 +313,10 @@
                         gameState.selectedTile = null;
                         drawMap();
                         updateInfo();
+                    } else {
+                        gameState.combatLog = `Fehler: ${unit.name} kann nur ${speed} Felder weit bewegen!<br>`;
+                        gameState.combatLog += `Entfernung zum Ziel (${x}, ${y}): ${distance} Felder.`;
+                        updateInfo();
                     }
                 }
                 canvas.removeEventListener('click', moveHandler);
@@ -328,8 +341,11 @@
             });
             gameState.players[gameState.currentPlayer].gold += income;
             
-            gameState.players[gameState.currentPlayer].units.forEach(tile => {
-                if (tile.unit) tile.unit.moved = false;
+            // Bewegung für alle Einheiten zurücksetzen
+            gameState.map.flat().forEach(tile => {
+                if (tile.unit && tile.owner === gameState.currentPlayer) {
+                    tile.unit.moved = false;
+                }
             });
 
             gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
