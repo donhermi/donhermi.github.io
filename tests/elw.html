@@ -39,44 +39,20 @@
 
         const UNITS = {
             'Luft': { 
-                name: 'Windreiter', 
-                cost: 50, 
-                atk: 30, 
-                def: 20, 
-                speed: 3, 
-                moved: false,
-                strengths: ['Feuer'],
-                weaknesses: ['Erde']
+                basic: { name: 'Windreiter', cost: 50, atk: 30, def: 20, speed: 3, moved: false, strengths: ['Feuer'], weaknesses: ['Erde'] },
+                advanced: { name: 'Sturmlord', cost: 100, atk: 50, def: 35, speed: 4, moved: false, strengths: ['Feuer'], weaknesses: ['Erde'] }
             },
             'Erde': { 
-                name: 'Steingolem', 
-                cost: 70, 
-                atk: 40, 
-                def: 50, 
-                speed: 1, 
-                moved: false,
-                strengths: ['Luft'],
-                weaknesses: ['Wasser']
+                basic: { name: 'Steingolem', cost: 70, atk: 40, def: 50, speed: 1, moved: false, strengths: ['Luft'], weaknesses: ['Wasser'] },
+                advanced: { name: 'Felskoloss', cost: 120, atk: 60, def: 70, speed: 2, moved: false, strengths: ['Luft'], weaknesses: ['Wasser'] }
             },
             'Wasser': { 
-                name: 'Gezeitenkrieger', 
-                cost: 60, 
-                atk: 35, 
-                def: 30, 
-                speed: 2, 
-                moved: false,
-                strengths: ['Feuer', 'Erde'],
-                weaknesses: []
+                basic: { name: 'Gezeitenkrieger', cost: 60, atk: 35, def: 30, speed: 2, moved: false, strengths: ['Feuer', 'Erde'], weaknesses: [] },
+                advanced: { name: 'Ozeanfürst', cost: 110, atk: 55, def: 45, speed: 3, moved: false, strengths: ['Feuer', 'Erde'], weaknesses: [] }
             },
             'Feuer': { 
-                name: 'Flammengeist', 
-                cost: 55, 
-                atk: 45, 
-                def: 25, 
-                speed: 2, 
-                moved: false,
-                strengths: [],
-                weaknesses: ['Luft', 'Wasser']
+                basic: { name: 'Flammengeist', cost: 50, atk: 45, def: 25, speed: 2, moved: false, strengths: [], weaknesses: ['Luft', 'Wasser'] },
+                advanced: { name: 'Infernoherrscher', cost: 105, atk: 65, def: 40, speed: 3, moved: false, strengths: [], weaknesses: ['Luft', 'Wasser'] }
             }
         };
 
@@ -86,6 +62,8 @@
             players: [],
             currentPlayer: 0,
             selectedTile: null,
+            currentUnitIndex: 0,
+            movingUnits: true,
             combatLog: ''
         };
 
@@ -97,6 +75,9 @@
                 this.owner = null;
                 this.unit = null;
                 this.improvement = null;
+                this.level = (type === 'Goldmine') ? 1 : 0; // Goldminen starten mit Level 1
+                this.cityLevel = 0; // Städte starten mit Level 0, außer Startstadt
+                this.conquered = false;
             }
         }
 
@@ -106,6 +87,7 @@
                 this.isAI = isAI;
                 this.gold = 100;
                 this.units = [];
+                this.hasAdvancedUnit = false;
             }
         }
 
@@ -135,16 +117,18 @@
                 do {
                     tx = Math.floor(Math.random() * MAP_WIDTH);
                     ty = Math.floor(Math.random() * MAP_HEIGHT);
-                } while (gameState.map[ty][tx].type !== (nation === 'Luft' ? 'Berg' : 'Ebene'));
+                } while (gameState.map[ty][tx].improvement);
                 
-                gameState.map[ty][tx].type = 'Tempel';
                 gameState.map[ty][tx].owner = i;
-                gameState.map[ty][tx].unit = { ...UNITS[nation] };
-                gameState.map[ty][tx].improvement = 'Kaserne';
+                gameState.map[ty][tx].unit = { ...UNITS[nation].basic };
+                gameState.map[ty][tx].improvement = 'Stadt';
+                gameState.map[ty][tx].cityLevel = 1; // Startstadt mit Level 1
                 gameState.players[i].units.push(gameState.map[ty][tx]);
             });
 
+            gameState.movingUnits = true;
             drawMap();
+            selectNextUnit();
             updateInfo();
         }
 
@@ -163,15 +147,16 @@
                     const tile = gameState.map[y][x];
                     let color = '#666';
                     if (tile.type === 'Berg') color = '#999';
-                    else if (tile.type === 'Goldmine') color = '#ffd700';
-                    else if (tile.type === 'Tempel') color = '#ffa500';
+                    else if (tile.type === 'Goldmine') color = tile.conquered ? '#ffcc00' : '#ffd700';
                     if (tile.owner !== null) color = COLORS[NATIONS[tile.owner]];
                     if (gameState.selectedTile === tile) color = '#ffffff';
                     
                     drawTile(x, y, color);
                     
                     if (tile.unit) ctx.fillStyle = 'black', ctx.fillText('E', x * TILE_SIZE + 10, y * TILE_SIZE + 20);
-                    if (tile.improvement === 'Kaserne') ctx.fillStyle = 'white', ctx.fillText('K', x * TILE_SIZE + 5, y * TILE_SIZE + 15);
+                    if (tile.improvement === 'Stadt') ctx.fillStyle = 'white', ctx.fillText('S', x * TILE_SIZE + 5, y * TILE_SIZE + 15);
+                    if (tile.level > 0) ctx.fillStyle = 'yellow', ctx.fillText(tile.level, x * TILE_SIZE + 20, y * TILE_SIZE + 15);
+                    if (tile.cityLevel > 1) ctx.fillStyle = 'cyan', ctx.fillText(tile.cityLevel, x * TILE_SIZE + 5, y * TILE_SIZE + 25);
                 }
             }
         }
@@ -180,17 +165,120 @@
         function updateInfo() {
             const p = gameState.players[gameState.currentPlayer];
             const toggleText = p.isAI ? 'Nation wieder übernehmen' : 'Nation an Verwalter (KI) übergeben';
+            let tileInfo = '';
+            let unitMessage = '';
+            let buyButtons = '';
+
+            if (gameState.selectedTile) {
+                const tile = gameState.selectedTile;
+                tileInfo = `<br>Feld (${tile.x}, ${tile.y}): `;
+                if (tile.type === 'Goldmine') {
+                    tileInfo += `Goldmine (Level ${tile.level}, ${tile.level * 10} Gold pro Runde)${tile.conquered ? ' [Erobert]' : ''}`;
+                    if (tile.owner === gameState.currentPlayer && tile.level < 3) tileInfo += `<br><button onclick="upgradeTile()">Goldmine verbessern (75g)</button>`;
+                } else if (tile.type === 'Berg') {
+                    tileInfo += 'Berg (Verteidigungsbonus)';
+                } else if (tile.type === 'Ebene') {
+                    tileInfo += `Ebene (Level ${tile.level}, ${tile.level || 1} Gold pro Runde)`;
+                    if (tile.owner === gameState.currentPlayer && tile.level < 3) tileInfo += `<br><button onclick="upgradeTile()">Ebene verbessern (50g)</button>`;
+                }
+                if (tile.improvement === 'Stadt') {
+                    tileInfo += `<br>Stadt (Level ${tile.cityLevel}, ${tile.cityLevel * 10} Gold pro Runde)`;
+                    if (tile.owner === gameState.currentPlayer && tile.cityLevel < 3) {
+                        tileInfo += `<br><button onclick="upgradeCity()">Stadt verbessern (150g)</button>`;
+                    }
+                }
+                if (tile.unit && tile.owner === gameState.currentPlayer && !tile.unit.moved && gameState.movingUnits) {
+                    unitMessage = `<br>${tile.unit.name} (${tile.x}, ${tile.y}) kann jetzt bewegt werden! Klicke auf ein Ziel.`;
+                }
+                if (tile.improvement === 'Stadt' && !tile.unit && tile.owner === gameState.currentPlayer && !gameState.movingUnits) {
+                    tileInfo += `<br>Stadt: Einheit kaufbar`;
+                    buyButtons = `
+                        <button onclick="buyUnit('basic')">${UNITS[p.nation].basic.name} kaufen (${UNITS[p.nation].basic.cost}g)</button><br>
+                        ${p.hasAdvancedUnit ? `<button onclick="buyUnit('advanced')">${UNITS[p.nation].advanced.name} kaufen (${UNITS[p.nation].advanced.cost}g)</button>` : ''}
+                    `;
+                }
+            }
+
             infoDiv.innerHTML = `
                 Aktueller Spieler: ${p.nation} ${p.isAI ? '(KI)' : ''}<br>
                 Gold: ${p.gold}<br>
                 Einheiten: ${p.units.length}<br>
-                <button onclick="buyUnit()">${UNITS[p.nation].name} kaufen (${UNITS[p.nation].cost}g)</button><br>
-                <button onclick="moveUnit()">Einheit bewegen</button><br>
-                <button onclick="buildBarracks()">Kaserne bauen (150g)</button><br>
+                ${buyButtons}
+                ${gameState.movingUnits ? '<button onclick="restUnit()">Einheit darf sich ausruhen</button><br>' : ''}
+                <button onclick="buildCity()">Stadt bauen (150g)</button><br>
                 <button onclick="toggleAI()">${toggleText}</button><br>
                 <button onclick="endTurn()">Zug beenden</button>
+                ${unitMessage}
+                ${tileInfo}
                 <div id="combatLog">${gameState.combatLog}</div>
             `;
+        }
+
+        function selectNextUnit() {
+            const p = gameState.players[gameState.currentPlayer];
+            const movableUnits = gameState.map.flat().filter(tile => 
+                tile.unit && tile.owner === gameState.currentPlayer && !tile.unit.moved
+            );
+
+            if (gameState.currentUnitIndex >= movableUnits.length) {
+                gameState.selectedTile = null;
+                gameState.movingUnits = false;
+                gameState.currentUnitIndex = 0;
+                updateInfo();
+                return;
+            }
+
+            gameState.selectedTile = movableUnits[gameState.currentUnitIndex];
+            gameState.movingUnits = true;
+            drawMap();
+            updateInfo();
+        }
+
+        function restUnit() {
+            if (!gameState.selectedTile || !gameState.selectedTile.unit || gameState.selectedTile.owner !== gameState.currentPlayer) return;
+            gameState.selectedTile.unit.moved = true;
+            gameState.combatLog = `${gameState.selectedTile.unit.name} ruht sich aus.`;
+            gameState.currentUnitIndex++;
+            selectNextUnit();
+        }
+
+        function upgradeTile() {
+            const p = gameState.players[gameState.currentPlayer];
+            const tile = gameState.selectedTile;
+            if (!tile || tile.owner !== gameState.currentPlayer || tile.level >= 3 || gameState.movingUnits) return;
+
+            let cost;
+            if (tile.type === 'Goldmine') cost = 75; // Billiger als Stadt
+            else if (tile.type === 'Ebene') cost = 50;
+            else return;
+
+            if (p.gold >= cost) {
+                p.gold -= cost;
+                tile.level += 1;
+                gameState.combatLog = `${tile.type} auf Level ${tile.level} verbessert!`;
+                drawMap();
+                updateInfo();
+            }
+        }
+
+        function upgradeCity() {
+            const p = gameState.players[gameState.currentPlayer];
+            const tile = gameState.selectedTile;
+            if (!tile || tile.owner !== gameState.currentPlayer || tile.improvement !== 'Stadt' || tile.cityLevel >= 3 || gameState.movingUnits) return;
+
+            const cost = 150;
+            if (p.gold >= cost) {
+                p.gold -= cost;
+                tile.cityLevel += 1;
+                if (tile.cityLevel >= 2 && !p.hasAdvancedUnit) {
+                    p.hasAdvancedUnit = true;
+                    gameState.combatLog = `Stadt auf Level ${tile.cityLevel} verbessert! Die stärkere Einheit ${UNITS[p.nation].advanced.name} ist jetzt verfügbar!`;
+                } else {
+                    gameState.combatLog = `Stadt auf Level ${tile.cityLevel} verbessert!`;
+                }
+                drawMap();
+                updateInfo();
+            }
         }
 
         function toggleAI() {
@@ -200,12 +288,14 @@
             if (p.isAI) endTurn();
         }
 
-        function buyUnit() {
+        function buyUnit(type) {
             const p = gameState.players[gameState.currentPlayer];
-            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement !== 'Kaserne') return;
-            if (p.gold >= UNITS[p.nation].cost && !gameState.selectedTile.unit) {
-                p.gold -= UNITS[p.nation].cost;
-                gameState.selectedTile.unit = { ...UNITS[p.nation] };
+            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement !== 'Stadt' || gameState.movingUnits) return;
+            const unitType = type === 'advanced' && p.hasAdvancedUnit ? 'advanced' : 'basic';
+            const unit = UNITS[p.nation][unitType];
+            if (p.gold >= unit.cost && !gameState.selectedTile.unit) {
+                p.gold -= unit.cost;
+                gameState.selectedTile.unit = { ...unit };
                 p.units.push(gameState.selectedTile);
                 drawMap();
                 updateInfo();
@@ -246,12 +336,34 @@
             const attackerWins = roll < winChance;
             
             log += `Siegwahrscheinlichkeit: ${(winChance * 100).toFixed(1)}% | Würfel: ${(roll * 100).toFixed(1)}%<br>`;
-            log += attackerWins 
-                ? `${attacker.name} besiegt ${defender.name} und besiedelt das Land!` 
-                : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
+            if (attackerWins && defenderTile.improvement === 'Stadt') {
+                log += getCityConquestText(attackerNation, defenderNation);
+            } else if (attackerWins && defenderTile.type === 'Goldmine') {
+                defenderTile.conquered = true;
+                log += `${attackerNation} hat die Goldmine von ${defenderNation} erobert! Die Schätze gehören nun uns!`;
+            } else {
+                log += attackerWins 
+                    ? `${attacker.name} besiegt ${defender.name} und besiedelt das Land!` 
+                    : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
+            }
             gameState.combatLog = log;
 
             return attackerWins;
+        }
+
+        function getCityConquestText(attackerNation, defenderNation) {
+            switch (attackerNation) {
+                case 'Luft':
+                    return `Die Winde des Sieges wehen triumphierend! Die Windreiter haben die Stadt von ${defenderNation} erobert und die Lüfte beanspruchen nun diese Stätte!`;
+                case 'Erde':
+                    return `Die Erde bebt unter dem Marsch der Steingolems! Die Stadt von ${defenderNation} fällt in die Hände der unerschütterlichen Erdenmacht!`;
+                case 'Wasser':
+                    return `Die Gezeiten wenden sich! Die Gezeitenkrieger haben die Stadt von ${defenderNation} überschwemmt und die Wellen der Herrschaft übernehmen!`;
+                case 'Feuer':
+                    return `Flammen lodern siegreich empor! Die Flammengeister haben die Stadt von ${defenderNation} in Asche gelegt und das Feuer regiert nun über diese Stätte!`;
+                default:
+                    return `${attackerNation} erobert die Stadt von ${defenderNation}!`;
+            }
         }
 
         function settleLand(unit, tile) {
@@ -259,76 +371,74 @@
             let log = `Besiedlung: ${unit.name} erobert das Land!<br>`;
             log += `Das Feld (${tile.x}, ${tile.y}) gehört jetzt ${nation}.<br>`;
             log += `Die Einheit ${unit.name} hat das Land besiedelt und zieht sich zurück.`;
+            if (tile.type === 'Goldmine') {
+                tile.conquered = true;
+                log += `<br>Die Goldmine wurde erobert und gehört nun ${nation}!`;
+            }
             gameState.combatLog = log;
+            gameState.currentUnitIndex++;
+            selectNextUnit();
         }
 
-        function moveUnit() {
+        function moveUnit(x, y) {
             const p = gameState.players[gameState.currentPlayer];
             if (!gameState.selectedTile || !gameState.selectedTile.unit || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.unit.moved) return;
 
             const unit = gameState.selectedTile.unit;
             const speed = unit.speed;
             const oldTile = gameState.selectedTile;
-
-            canvas.addEventListener('click', function moveHandler(e) {
-                const rect = canvas.getBoundingClientRect();
-                const mx = e.clientX - rect.left;
-                const my = e.clientY - rect.top;
-                const x = Math.floor(mx / TILE_SIZE);
-                const y = Math.floor(my / TILE_SIZE);
-
-                if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-                    const newTile = gameState.map[y][x];
-                    const distance = Math.max(Math.abs(newTile.x - oldTile.x), Math.abs(newTile.y - oldTile.y));
-                    
-                    if (distance <= speed) {
-                        if (newTile.owner === gameState.currentPlayer && !newTile.unit) { // Eigenes leeres Feld
-                            newTile.unit = unit; // Einheit direkt übernehmen
-                            oldTile.unit = null;
-                            unit.moved = true; // Markieren als bewegt
-                        } else if (!newTile.owner) { // Neutrales Feld (Besiedlung)
+            const newTile = gameState.map[y][x];
+            const distance = Math.max(Math.abs(newTile.x - oldTile.x), Math.abs(newTile.y - oldTile.y));
+            
+            if (distance <= speed) {
+                if (newTile.owner === gameState.currentPlayer && !newTile.unit) { // Eigenes leeres Feld
+                    newTile.unit = unit;
+                    oldTile.unit = null;
+                    unit.moved = true;
+                    gameState.currentUnitIndex++;
+                    selectNextUnit();
+                } else if (!newTile.owner) { // Neutrales Feld (Besiedlung)
+                    newTile.owner = gameState.currentPlayer;
+                    oldTile.unit = null;
+                    p.units = p.units.filter(t => t !== oldTile);
+                    unit.moved = true;
+                    settleLand(unit, newTile);
+                } else if (newTile.owner !== gameState.currentPlayer) { // Gegnerisches Feld
+                    if (newTile.unit) { // Kampf
+                        if (calculateCombat(unit, newTile.unit, newTile)) {
                             newTile.owner = gameState.currentPlayer;
-                            oldTile.unit = null;
-                            p.units = p.units.filter(t => t !== oldTile);
-                            unit.moved = true;
-                            settleLand(unit, newTile);
-                        } else if (newTile.owner !== gameState.currentPlayer) { // Gegnerisches Feld
-                            if (newTile.unit) { // Kampf
-                                if (calculateCombat(unit, newTile.unit, newTile)) {
-                                    newTile.owner = gameState.currentPlayer;
-                                    newTile.unit = null;
-                                    gameState.players[newTile.owner].units = gameState.players[newTile.owner].units.filter(t => t !== newTile);
-                                }
-                                oldTile.unit = null;
-                                p.units = p.units.filter(t => t !== oldTile);
-                                unit.moved = true;
-                            } else { // Leeres gegnerisches Feld (Besiedlung)
-                                newTile.owner = gameState.currentPlayer;
-                                oldTile.unit = null;
-                                p.units = p.units.filter(t => t !== oldTile);
-                                unit.moved = true;
-                                settleLand(unit, newTile);
-                            }
+                            newTile.unit = null;
+                            gameState.players[newTile.owner].units = gameState.players[newTile.owner].units.filter(t => t !== newTile);
                         }
-                        gameState.selectedTile = null;
-                        drawMap();
-                        updateInfo();
-                    } else {
-                        gameState.combatLog = `Fehler: ${unit.name} kann nur ${speed} Felder weit bewegen!<br>`;
-                        gameState.combatLog += `Entfernung zum Ziel (${x}, ${y}): ${distance} Felder.`;
-                        updateInfo();
+                        oldTile.unit = null;
+                        p.units = p.units.filter(t => t !== oldTile);
+                        unit.moved = true;
+                        gameState.currentUnitIndex++;
+                        selectNextUnit();
+                    } else { // Leeres gegnerisches Feld (Besiedlung)
+                        newTile.owner = gameState.currentPlayer;
+                        oldTile.unit = null;
+                        p.units = p.units.filter(t => t !== oldTile);
+                        unit.moved = true;
+                        settleLand(unit, newTile);
                     }
                 }
-                canvas.removeEventListener('click', moveHandler);
-            }, { once: true });
+                drawMap();
+                updateInfo();
+            } else {
+                gameState.combatLog = `Fehler: ${unit.name} kann nur ${speed} Felder weit bewegen!<br>`;
+                gameState.combatLog += `Entfernung zum Ziel (${x}, ${y}): ${distance} Felder.`;
+                updateInfo();
+            }
         }
 
-        function buildBarracks() {
+        function buildCity() {
             const p = gameState.players[gameState.currentPlayer];
-            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement) return;
+            if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement || gameState.movingUnits) return;
             if (p.gold >= 150) {
                 p.gold -= 150;
-                gameState.selectedTile.improvement = 'Kaserne';
+                gameState.selectedTile.improvement = 'Stadt';
+                gameState.selectedTile.cityLevel = 1;
                 drawMap();
                 updateInfo();
             }
@@ -337,11 +447,14 @@
         function endTurn() {
             let income = 0;
             gameState.map.flat().forEach(tile => {
-                if (tile.owner === gameState.currentPlayer && tile.type === 'Goldmine') income += 10;
+                if (tile.owner === gameState.currentPlayer) {
+                    if (tile.type === 'Goldmine') income += tile.level * 10;
+                    else if (tile.type === 'Ebene') income += tile.level || 1;
+                    if (tile.improvement === 'Stadt') income += tile.cityLevel * 10; // Stadt generiert Gold
+                }
             });
             gameState.players[gameState.currentPlayer].gold += income;
             
-            // Bewegung für alle Einheiten zurücksetzen
             gameState.map.flat().forEach(tile => {
                 if (tile.unit && tile.owner === gameState.currentPlayer) {
                     tile.unit.moved = false;
@@ -350,8 +463,11 @@
 
             gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
             gameState.selectedTile = null;
+            gameState.currentUnitIndex = 0;
+            gameState.movingUnits = true;
             gameState.combatLog = '';
             drawMap();
+            selectNextUnit();
             updateInfo();
             
             if (gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 1000);
@@ -361,24 +477,45 @@
             const p = gameState.players[gameState.currentPlayer];
             const ownedTiles = gameState.map.flat().filter(t => t.owner === gameState.currentPlayer);
             
-            if (Math.random() < 0.3 && p.gold >= 150) {
-                const emptyTile = ownedTiles.find(t => !t.improvement);
-                if (emptyTile) {
-                    gameState.selectedTile = emptyTile;
-                    buildBarracks();
+            if (!gameState.movingUnits) {
+                if (Math.random() < 0.3 && p.gold >= 150) {
+                    const emptyTile = ownedTiles.find(t => !t.improvement);
+                    if (emptyTile) {
+                        gameState.selectedTile = emptyTile;
+                        buildCity();
+                    }
                 }
-            }
 
-            if (Math.random() < 0.5 && p.gold >= UNITS[p.nation].cost) {
-                const barracksTile = ownedTiles.find(t => t.improvement === 'Kaserne' && !t.unit);
-                if (barracksTile) {
-                    gameState.selectedTile = barracksTile;
-                    buyUnit();
+                if (Math.random() < 0.5 && p.gold >= UNITS[p.nation].basic.cost) {
+                    const cityTile = ownedTiles.find(t => t.improvement === 'Stadt' && !t.unit);
+                    if (cityTile) {
+                        gameState.selectedTile = cityTile;
+                        buyUnit(p.hasAdvancedUnit && p.gold >= UNITS[p.nation].advanced.cost ? 'advanced' : 'basic');
+                    }
+                }
+
+                if (Math.random() < 0.4) {
+                    const upgradableTile = ownedTiles.find(t => 
+                        (t.type === 'Goldmine' && p.gold >= 75 && t.level < 3) ||
+                        (t.type === 'Ebene' && p.gold >= 50 && t.level < 3)
+                    );
+                    if (upgradableTile) {
+                        gameState.selectedTile = upgradableTile;
+                        upgradeTile();
+                    }
+                }
+
+                if (Math.random() < 0.4) {
+                    const upgradableCity = ownedTiles.find(t => t.improvement === 'Stadt' && p.gold >= 150 && t.cityLevel < 3);
+                    if (upgradableCity) {
+                        gameState.selectedTile = upgradableCity;
+                        upgradeCity();
+                    }
                 }
             }
 
             const unitTile = ownedTiles.find(t => t.unit && !t.unit.moved);
-            if (unitTile) {
+            if (unitTile && gameState.movingUnits) {
                 gameState.selectedTile = unitTile;
                 const unit = unitTile.unit;
                 const possibleMoves = [];
@@ -390,37 +527,16 @@
                 }
                 if (possibleMoves.length > 0) {
                     const target = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
-                    if (target.owner === gameState.currentPlayer && !target.unit) {
-                        target.unit = unit;
-                        unitTile.unit = null;
-                        unit.moved = true;
-                    } else if (!target.owner) {
-                        target.owner = gameState.currentPlayer;
-                        unitTile.unit = null;
-                        p.units = p.units.filter(t => t !== unitTile);
-                        unit.moved = true;
-                        settleLand(unit, target);
-                    } else if (target.owner !== gameState.currentPlayer) {
-                        if (target.unit) {
-                            if (calculateCombat(unit, target.unit, target)) {
-                                target.owner = gameState.currentPlayer;
-                                target.unit = null;
-                                gameState.players[target.owner].units = gameState.players[target.owner].units.filter(t => t !== target);
-                            }
-                            unitTile.unit = null;
-                            p.units = p.units.filter(t => t !== unitTile);
-                            unit.moved = true;
-                        } else {
-                            target.owner = gameState.currentPlayer;
-                            unitTile.unit = null;
-                            p.units = p.units.filter(t => t !== unitTile);
-                            unit.moved = true;
-                            settleLand(unit, target);
-                        }
-                    }
+                    moveUnit(target.x, target.y);
+                    setTimeout(aiTurn, 1000);
+                    return;
                 }
             }
-            
+            if (!unitTile) {
+                gameState.movingUnits = false;
+                setTimeout(aiTurn, 1000);
+                return;
+            }
             setTimeout(endTurn, 1000);
         }
 
@@ -433,9 +549,13 @@
             const y = Math.floor(my / TILE_SIZE);
             
             if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-                gameState.selectedTile = gameState.map[y][x];
-                drawMap();
-                updateInfo();
+                if (gameState.movingUnits && gameState.selectedTile && gameState.selectedTile.unit && !gameState.selectedTile.unit.moved) {
+                    moveUnit(x, y);
+                } else {
+                    gameState.selectedTile = gameState.map[y][x];
+                    drawMap();
+                    updateInfo();
+                }
             }
         });
 
