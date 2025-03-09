@@ -62,6 +62,7 @@
             players: [],
             currentPlayer: 0,
             selectedTile: null,
+            targetTile: null, // Für manuelle Bewegung
             currentUnitIndex: 0,
             movingUnits: true,
             combatLog: ''
@@ -75,8 +76,8 @@
                 this.owner = null;
                 this.unit = null;
                 this.improvement = null;
-                this.level = (type === 'Goldmine') ? 1 : 0; // Goldminen starten mit Level 1
-                this.cityLevel = 0; // Städte starten mit Level 0, außer Startstadt
+                this.level = (type === 'Goldmine') ? 1 : 0;
+                this.cityLevel = 0;
                 this.conquered = false;
             }
         }
@@ -122,7 +123,7 @@
                 gameState.map[ty][tx].owner = i;
                 gameState.map[ty][tx].unit = { ...UNITS[nation].basic };
                 gameState.map[ty][tx].improvement = 'Stadt';
-                gameState.map[ty][tx].cityLevel = 1; // Startstadt mit Level 1
+                gameState.map[ty][tx].cityLevel = 1;
                 gameState.players[i].units.push(gameState.map[ty][tx]);
             });
 
@@ -150,6 +151,7 @@
                     else if (tile.type === 'Goldmine') color = tile.conquered ? '#ffcc00' : '#ffd700';
                     if (tile.owner !== null) color = COLORS[NATIONS[tile.owner]];
                     if (gameState.selectedTile === tile) color = '#ffffff';
+                    if (gameState.targetTile === tile) color = '#ffff00'; // Gelb für manuelles Bewegungsziel
                     
                     drawTile(x, y, color);
                     
@@ -168,6 +170,7 @@
             let tileInfo = '';
             let unitMessage = '';
             let buyButtons = '';
+            let moveButton = '';
 
             if (gameState.selectedTile) {
                 const tile = gameState.selectedTile;
@@ -188,7 +191,10 @@
                     }
                 }
                 if (tile.unit && tile.owner === gameState.currentPlayer && !tile.unit.moved && gameState.movingUnits) {
-                    unitMessage = `<br>${tile.unit.name} (${tile.x}, ${tile.y}) kann jetzt bewegt werden! Klicke auf ein Ziel.`;
+                    unitMessage = `<br>${tile.unit.name} (${tile.x}, ${tile.y}) kann jetzt bewegt werden! Klicke auf ein Ziel oder wähle manuell.`;
+                    if (gameState.targetTile) {
+                        moveButton = `<br><button onclick="confirmMove()">Einheit nach (${gameState.targetTile.x}, ${gameState.targetTile.y}) bewegen</button>`;
+                    }
                 }
                 if (tile.improvement === 'Stadt' && !tile.unit && tile.owner === gameState.currentPlayer && !gameState.movingUnits) {
                     tileInfo += `<br>Stadt: Einheit kaufbar`;
@@ -209,6 +215,7 @@
                 <button onclick="toggleAI()">${toggleText}</button><br>
                 <button onclick="endTurn()">Zug beenden</button>
                 ${unitMessage}
+                ${moveButton}
                 ${tileInfo}
                 <div id="combatLog">${gameState.combatLog}</div>
             `;
@@ -220,8 +227,9 @@
                 tile.unit && tile.owner === gameState.currentPlayer && !tile.unit.moved
             );
 
-            if (gameState.currentUnitIndex >= movableUnits.length) {
+            if (movableUnits.length === 0 || gameState.currentUnitIndex >= movableUnits.length) {
                 gameState.selectedTile = null;
+                gameState.targetTile = null;
                 gameState.movingUnits = false;
                 gameState.currentUnitIndex = 0;
                 updateInfo();
@@ -248,7 +256,7 @@
             if (!tile || tile.owner !== gameState.currentPlayer || tile.level >= 3 || gameState.movingUnits) return;
 
             let cost;
-            if (tile.type === 'Goldmine') cost = 75; // Billiger als Stadt
+            if (tile.type === 'Goldmine') cost = 75;
             else if (tile.type === 'Ebene') cost = 50;
             else return;
 
@@ -432,6 +440,15 @@
             }
         }
 
+        function confirmMove() {
+            if (gameState.selectedTile && gameState.targetTile && gameState.selectedTile.unit && !gameState.selectedTile.unit.moved) {
+                moveUnit(gameState.targetTile.x, gameState.targetTile.y);
+                gameState.targetTile = null;
+            }
+            drawMap();
+            updateInfo();
+        }
+
         function buildCity() {
             const p = gameState.players[gameState.currentPlayer];
             if (!gameState.selectedTile || gameState.selectedTile.owner !== gameState.currentPlayer || gameState.selectedTile.improvement || gameState.movingUnits) return;
@@ -450,7 +467,7 @@
                 if (tile.owner === gameState.currentPlayer) {
                     if (tile.type === 'Goldmine') income += tile.level * 10;
                     else if (tile.type === 'Ebene') income += tile.level || 1;
-                    if (tile.improvement === 'Stadt') income += tile.cityLevel * 10; // Stadt generiert Gold
+                    if (tile.improvement === 'Stadt') income += tile.cityLevel * 10;
                 }
             });
             gameState.players[gameState.currentPlayer].gold += income;
@@ -463,6 +480,7 @@
 
             gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
             gameState.selectedTile = null;
+            gameState.targetTile = null;
             gameState.currentUnitIndex = 0;
             gameState.movingUnits = true;
             gameState.combatLog = '';
@@ -476,7 +494,7 @@
         function aiTurn() {
             const p = gameState.players[gameState.currentPlayer];
             const ownedTiles = gameState.map.flat().filter(t => t.owner === gameState.currentPlayer);
-            
+
             if (!gameState.movingUnits) {
                 if (Math.random() < 0.3 && p.gold >= 150) {
                     const emptyTile = ownedTiles.find(t => !t.improvement);
@@ -512,6 +530,10 @@
                         upgradeCity();
                     }
                 }
+
+                gameState.movingUnits = true;
+                setTimeout(aiTurn, 1000);
+                return;
             }
 
             const unitTile = ownedTiles.find(t => t.unit && !t.unit.moved);
@@ -532,11 +554,8 @@
                     return;
                 }
             }
-            if (!unitTile) {
-                gameState.movingUnits = false;
-                setTimeout(aiTurn, 1000);
-                return;
-            }
+
+            gameState.movingUnits = false;
             setTimeout(endTurn, 1000);
         }
 
@@ -550,9 +569,14 @@
             
             if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
                 if (gameState.movingUnits && gameState.selectedTile && gameState.selectedTile.unit && !gameState.selectedTile.unit.moved) {
-                    moveUnit(x, y);
+                    moveUnit(x, y); // Automatische Bewegung mit Klick
                 } else {
                     gameState.selectedTile = gameState.map[y][x];
+                    if (gameState.selectedTile.unit && gameState.selectedTile.owner === gameState.currentPlayer && !gameState.selectedTile.unit.moved) {
+                        gameState.targetTile = null; // Bereit für manuelle Bewegung
+                    } else {
+                        gameState.targetTile = null;
+                    }
                     drawMap();
                     updateInfo();
                 }
