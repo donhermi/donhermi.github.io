@@ -17,20 +17,37 @@
         body { background: #111; margin: 0; }
         button { margin: 5px; padding: 5px; }
         #combatLog { margin-top: 10px; font-size: 12px; }
+        #settingsDiv {
+            font-family: Arial; 
+            color: white; 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); 
+            padding: 20px; 
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-    <div id="gameInfo"></div>
+    <canvas id="gameCanvas" width="600" height="600" style="display: none;"></canvas>
+    <div id="gameInfo" style="display: none;"></div>
+    <div id="settingsDiv">
+        <h2>Karteneinstellungen</h2>
+        <p>Wähle die Größe der Karte:</p>
+        <button onclick="startGame(10)">Klein (10x10 Felder)</button><br>
+        <button onclick="startGame(20)">Mittel (20x20 Felder)</button><br>
+        <button onclick="startGame(30)">Groß (30x30 Felder)</button>
+    </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const infoDiv = document.getElementById('gameInfo');
+        const settingsDiv = document.getElementById('settingsDiv');
 
         // Spielkonstanten
         const TILE_SIZE = 30;
-        const MAP_WIDTH = 20;
-        const MAP_HEIGHT = 20;
         const NATIONS = ['Luft', 'Erde', 'Wasser', 'Feuer'];
         const COLORS = {
             'Luft': '#b0e0e6', 'Erde': '#8b4513', 
@@ -65,7 +82,10 @@
             targetTile: null,
             currentUnitIndex: 0,
             movingUnits: true,
-            combatLog: ''
+            combatLog: '',
+            gameOver: false,
+            mapWidth: 0, // Dynamisch gesetzt
+            mapHeight: 0 // Dynamisch gesetzt
         };
 
         class Tile {
@@ -89,8 +109,21 @@
                 this.gold = 100;
                 this.units = [];
                 this.hasAdvancedUnit = false;
-                this.active = true; // Neuer Status, um zu prüfen, ob der Spieler noch im Spiel ist
+                this.active = true;
             }
+        }
+
+        // Spiel starten mit gewählter Größe
+        function startGame(size) {
+            gameState.mapWidth = size;
+            gameState.mapHeight = size;
+            canvas.width = size * TILE_SIZE;
+            canvas.height = size * TILE_SIZE;
+            infoDiv.style.left = (size * TILE_SIZE + 20) + 'px';
+            settingsDiv.style.display = 'none';
+            canvas.style.display = 'block';
+            infoDiv.style.display = 'block';
+            initGame();
         }
 
         // Initialisierung
@@ -103,9 +136,9 @@
             ];
 
             gameState.map = [];
-            for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let y = 0; y < gameState.mapHeight; y++) {
                 gameState.map[y] = [];
-                for (let x = 0; x < MAP_WIDTH; x++) {
+                for (let x = 0; x < gameState.mapWidth; x++) {
                     const rand = Math.random();
                     let type = 'Ebene';
                     if (rand < 0.1) type = 'Goldmine';
@@ -117,8 +150,8 @@
             NATIONS.forEach((nation, i) => {
                 let tx, ty;
                 do {
-                    tx = Math.floor(Math.random() * MAP_WIDTH);
-                    ty = Math.floor(Math.random() * MAP_HEIGHT);
+                    tx = Math.floor(Math.random() * gameState.mapWidth);
+                    ty = Math.floor(Math.random() * gameState.mapHeight);
                 } while (gameState.map[ty][tx].improvement);
                 
                 gameState.map[ty][tx].owner = i;
@@ -144,8 +177,8 @@
 
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let y = 0; y < MAP_HEIGHT; y++) {
-                for (let x = 0; x < MAP_WIDTH; x++) {
+            for (let y = 0; y < gameState.mapHeight; y++) {
+                for (let x = 0; x < gameState.mapWidth; x++) {
                     const tile = gameState.map[y][x];
                     let color = '#666';
                     if (tile.type === 'Berg') color = '#999';
@@ -166,9 +199,19 @@
 
         // Spiel-Logik
         function updateInfo() {
+            if (gameState.gameOver) {
+                const winner = gameState.players.find(p => p.active);
+                infoDiv.innerHTML = `
+                    <h2>Sieg!</h2>
+                    ${getVictoryMessage(winner.nation)}
+                    <button onclick="location.reload()">Neues Spiel starten</button>
+                `;
+                return;
+            }
+
             const p = gameState.players[gameState.currentPlayer];
             if (!p.active) {
-                endTurn(); // Wenn der Spieler nicht mehr aktiv ist, sofort den Zug beenden
+                endTurn();
                 return;
             }
             const toggleText = p.isAI ? 'Nation wieder übernehmen' : 'Nation an Verwalter (KI) übergeben';
@@ -226,6 +269,29 @@
             `;
         }
 
+        function getVictoryMessage(nation) {
+            switch (nation) {
+                case 'Luft':
+                    return `Die Lüfte triumphieren! Die Windreiter haben die Welt unter ihre Schwingen gebracht, und der Sturm der Herrschaft fegt über das Land. ${nation} regiert unangefochten!`;
+                case 'Erde':
+                    return `Die Erde erhebt sich siegreich! Die Steingolems haben das Land in einen unzerstörbaren Fels verwandelt, und ${nation} steht als unerschütterlicher Herrscher da!`;
+                case 'Wasser':
+                    return `Die Gezeiten haben gesiegt! Die Ozeanfürsten haben das Land in einem endlosen Meer ertränkt, und ${nation} herrscht über die Wellen der Ewigkeit!`;
+                case 'Feuer':
+                    return `Die Flammen lodern unbesiegbar! Die Infernoherrscher haben die Welt in ein Meer aus Feuer getaucht, und ${nation} thront über einem Reich der Asche und Glut!`;
+                default:
+                    return `${nation} hat gesiegt! Die Elemente beugen sich ihrem Willen!`;
+            }
+        }
+
+        function checkVictory() {
+            const activePlayers = gameState.players.filter(p => p.active);
+            if (activePlayers.length === 1) {
+                gameState.gameOver = true;
+                updateInfo();
+            }
+        }
+
         function selectNextUnit() {
             const p = gameState.players[gameState.currentPlayer];
             const movableUnits = gameState.map.flat().filter(tile => 
@@ -241,7 +307,6 @@
                 return;
             }
 
-            // Sicherstellen, dass der Index nicht außerhalb des Arrays liegt
             if (gameState.currentUnitIndex >= movableUnits.length) {
                 gameState.currentUnitIndex = 0;
             }
@@ -342,7 +407,7 @@
             }
             if (defender.weaknesses.includes(attackerNation)) {
                 defPower *= 0.75;
-                log += `${defenderNation} schwach gegen ${attackerNation}: VER x0.75 = ${defPower.toFixed(1)}<br>`;
+                log += `${defenderNation} schwach gegen ${defenderNation}: VER x0.75 = ${defPower.toFixed(1)}<br>`;
             }
             if (defenderTile.type === 'Berg') {
                 log += `Bergbonus: VER x1.5 = ${defPower.toFixed(1)}<br>`;
@@ -365,7 +430,6 @@
                     : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
             }
 
-            // Prüfen, ob die verteidigende Nation keine Felder mehr hat
             if (attackerWins) {
                 const defenderPlayer = gameState.players[defenderTile.owner];
                 const ownedTiles = gameState.map.flat().filter(t => t.owner === defenderTile.owner);
@@ -404,7 +468,6 @@
                 log += `<br>Die Goldmine wurde erobert und gehört nun ${nation}!`;
             }
             
-            // Prüfen, ob die verteidigende Nation keine Felder mehr hat
             const previousOwner = tile.owner;
             if (previousOwner !== null && previousOwner !== gameState.currentPlayer) {
                 const ownedTiles = gameState.map.flat().filter(t => t.owner === previousOwner);
@@ -430,20 +493,20 @@
             const distance = Math.max(Math.abs(newTile.x - oldTile.x), Math.abs(newTile.y - oldTile.y));
             
             if (distance <= speed) {
-                if (newTile.owner === gameState.currentPlayer && !newTile.unit) { // Eigenes leeres Feld
+                if (newTile.owner === gameState.currentPlayer && !newTile.unit) {
                     newTile.unit = unit;
                     oldTile.unit = null;
                     unit.moved = true;
                     gameState.currentUnitIndex++;
                     selectNextUnit();
-                } else if (!newTile.owner) { // Neutrales Feld (Besiedlung)
+                } else if (!newTile.owner) {
                     newTile.owner = gameState.currentPlayer;
                     oldTile.unit = null;
                     p.units = p.units.filter(t => t !== oldTile);
                     unit.moved = true;
                     settleLand(unit, newTile);
-                } else if (newTile.owner !== gameState.currentPlayer) { // Gegnerisches Feld
-                    if (newTile.unit) { // Kampf
+                } else if (newTile.owner !== gameState.currentPlayer) {
+                    if (newTile.unit) {
                         if (calculateCombat(unit, newTile.unit, newTile)) {
                             newTile.owner = gameState.currentPlayer;
                             newTile.unit = null;
@@ -454,7 +517,7 @@
                         unit.moved = true;
                         gameState.currentUnitIndex++;
                         selectNextUnit();
-                    } else { // Leeres gegnerisches Feld (Besiedlung)
+                    } else {
                         newTile.owner = gameState.currentPlayer;
                         oldTile.unit = null;
                         p.units = p.units.filter(t => t !== oldTile);
@@ -493,6 +556,8 @@
         }
 
         function endTurn() {
+            if (gameState.gameOver) return;
+
             let income = 0;
             gameState.map.flat().forEach(tile => {
                 if (tile.owner === gameState.currentPlayer) {
@@ -509,11 +574,10 @@
                 }
             });
 
-            // Zum nächsten aktiven Spieler wechseln
             let nextPlayer = (gameState.currentPlayer + 1) % 4;
             while (!gameState.players[nextPlayer].active) {
                 nextPlayer = (nextPlayer + 1) % 4;
-                if (nextPlayer === gameState.currentPlayer) break; // Sicherstellen, dass nicht unendlich geloopt wird
+                if (nextPlayer === gameState.currentPlayer) break;
             }
             gameState.currentPlayer = nextPlayer;
             gameState.selectedTile = null;
@@ -525,7 +589,9 @@
             selectNextUnit();
             updateInfo();
             
-            if (gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 1000);
+            checkVictory();
+            
+            if (!gameState.gameOver && gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 1000);
         }
 
         function aiTurn() {
@@ -578,8 +644,8 @@
                 gameState.selectedTile = unitTile;
                 const unit = unitTile.unit;
                 const possibleMoves = [];
-                for (let y = 0; y < MAP_HEIGHT; y++) {
-                    for (let x = 0; x < MAP_WIDTH; x++) {
+                for (let y = 0; y < gameState.mapHeight; y++) {
+                    for (let x = 0; x < gameState.mapWidth; x++) {
                         const dist = Math.max(Math.abs(x - unitTile.x), Math.abs(y - unitTile.y));
                         if (dist <= unit.speed) possibleMoves.push(gameState.map[y][x]);
                     }
@@ -598,13 +664,15 @@
 
         // Event-Handling
         canvas.addEventListener('click', (e) => {
+            if (gameState.gameOver) return;
+
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
             const x = Math.floor(mx / TILE_SIZE);
             const y = Math.floor(my / TILE_SIZE);
             
-            if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+            if (x >= 0 && x < gameState.mapWidth && y >= 0 && y < gameState.mapHeight) {
                 if (gameState.movingUnits && gameState.selectedTile && gameState.selectedTile.unit && !gameState.selectedTile.unit.moved) {
                     moveUnit(x, y);
                 } else {
@@ -619,9 +687,6 @@
                 }
             }
         });
-
-        // Spiel starten
-        initGame();
     </script>
 </body>
 </html>
