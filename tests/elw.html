@@ -62,7 +62,7 @@
             players: [],
             currentPlayer: 0,
             selectedTile: null,
-            targetTile: null, // Für manuelle Bewegung
+            targetTile: null,
             currentUnitIndex: 0,
             movingUnits: true,
             combatLog: ''
@@ -89,6 +89,7 @@
                 this.gold = 100;
                 this.units = [];
                 this.hasAdvancedUnit = false;
+                this.active = true; // Neuer Status, um zu prüfen, ob der Spieler noch im Spiel ist
             }
         }
 
@@ -151,7 +152,7 @@
                     else if (tile.type === 'Goldmine') color = tile.conquered ? '#ffcc00' : '#ffd700';
                     if (tile.owner !== null) color = COLORS[NATIONS[tile.owner]];
                     if (gameState.selectedTile === tile) color = '#ffffff';
-                    if (gameState.targetTile === tile) color = '#ffff00'; // Gelb für manuelles Bewegungsziel
+                    if (gameState.targetTile === tile) color = '#ffff00';
                     
                     drawTile(x, y, color);
                     
@@ -166,6 +167,10 @@
         // Spiel-Logik
         function updateInfo() {
             const p = gameState.players[gameState.currentPlayer];
+            if (!p.active) {
+                endTurn(); // Wenn der Spieler nicht mehr aktiv ist, sofort den Zug beenden
+                return;
+            }
             const toggleText = p.isAI ? 'Nation wieder übernehmen' : 'Nation an Verwalter (KI) übergeben';
             let tileInfo = '';
             let unitMessage = '';
@@ -227,13 +232,18 @@
                 tile.unit && tile.owner === gameState.currentPlayer && !tile.unit.moved
             );
 
-            if (movableUnits.length === 0 || gameState.currentUnitIndex >= movableUnits.length) {
+            if (movableUnits.length === 0) {
                 gameState.selectedTile = null;
                 gameState.targetTile = null;
                 gameState.movingUnits = false;
                 gameState.currentUnitIndex = 0;
                 updateInfo();
                 return;
+            }
+
+            // Sicherstellen, dass der Index nicht außerhalb des Arrays liegt
+            if (gameState.currentUnitIndex >= movableUnits.length) {
+                gameState.currentUnitIndex = 0;
             }
 
             gameState.selectedTile = movableUnits[gameState.currentUnitIndex];
@@ -354,8 +364,18 @@
                     ? `${attacker.name} besiegt ${defender.name} und besiedelt das Land!` 
                     : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
             }
-            gameState.combatLog = log;
 
+            // Prüfen, ob die verteidigende Nation keine Felder mehr hat
+            if (attackerWins) {
+                const defenderPlayer = gameState.players[defenderTile.owner];
+                const ownedTiles = gameState.map.flat().filter(t => t.owner === defenderTile.owner);
+                if (ownedTiles.length === 1 && ownedTiles[0] === defenderTile) {
+                    log += `<br>${defenderNation} wurde vollständig besiegt! Das letzte Feld (${defenderTile.x}, ${defenderTile.y}) ist gefallen!`;
+                    defenderPlayer.active = false;
+                }
+            }
+
+            gameState.combatLog = log;
             return attackerWins;
         }
 
@@ -383,6 +403,17 @@
                 tile.conquered = true;
                 log += `<br>Die Goldmine wurde erobert und gehört nun ${nation}!`;
             }
+            
+            // Prüfen, ob die verteidigende Nation keine Felder mehr hat
+            const previousOwner = tile.owner;
+            if (previousOwner !== null && previousOwner !== gameState.currentPlayer) {
+                const ownedTiles = gameState.map.flat().filter(t => t.owner === previousOwner);
+                if (ownedTiles.length === 1 && ownedTiles[0] === tile) {
+                    log += `<br>${NATIONS[previousOwner]} wurde vollständig besiegt! Das letzte Feld (${tile.x}, ${tile.y}) ist gefallen!`;
+                    gameState.players[previousOwner].active = false;
+                }
+            }
+
             gameState.combatLog = log;
             gameState.currentUnitIndex++;
             selectNextUnit();
@@ -478,7 +509,13 @@
                 }
             });
 
-            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+            // Zum nächsten aktiven Spieler wechseln
+            let nextPlayer = (gameState.currentPlayer + 1) % 4;
+            while (!gameState.players[nextPlayer].active) {
+                nextPlayer = (nextPlayer + 1) % 4;
+                if (nextPlayer === gameState.currentPlayer) break; // Sicherstellen, dass nicht unendlich geloopt wird
+            }
+            gameState.currentPlayer = nextPlayer;
             gameState.selectedTile = null;
             gameState.targetTile = null;
             gameState.currentUnitIndex = 0;
@@ -569,11 +606,11 @@
             
             if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
                 if (gameState.movingUnits && gameState.selectedTile && gameState.selectedTile.unit && !gameState.selectedTile.unit.moved) {
-                    moveUnit(x, y); // Automatische Bewegung mit Klick
+                    moveUnit(x, y);
                 } else {
                     gameState.selectedTile = gameState.map[y][x];
                     if (gameState.selectedTile.unit && gameState.selectedTile.owner === gameState.currentPlayer && !gameState.selectedTile.unit.moved) {
-                        gameState.targetTile = null; // Bereit für manuelle Bewegung
+                        gameState.targetTile = null;
                     } else {
                         gameState.targetTile = null;
                     }
