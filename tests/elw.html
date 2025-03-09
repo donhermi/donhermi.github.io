@@ -46,7 +46,6 @@
         const infoDiv = document.getElementById('gameInfo');
         const settingsDiv = document.getElementById('settingsDiv');
 
-        // Spielkonstanten
         const TILE_SIZE = 30;
         const NATIONS = ['Luft', 'Erde', 'Wasser', 'Feuer'];
         const COLORS = {
@@ -73,7 +72,6 @@
             }
         };
 
-        // Spielzustand
         let gameState = {
             map: [],
             players: [],
@@ -600,51 +598,91 @@
             
             checkVictory();
             
-            if (!gameState.gameOver && gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 1000);
+            if (!gameState.gameOver && gameState.players[gameState.currentPlayer].isAI) setTimeout(aiTurn, 500);
         }
 
+        // Helper function to calculate distance between tiles
+        function getDistance(tile1, tile2) {
+            return Math.max(Math.abs(tile1.x - tile2.x), Math.abs(tile1.y - tile2.y));
+        }
+
+        // Smarter AI turn logic
         function aiTurn() {
             const p = gameState.players[gameState.currentPlayer];
             const ownedTiles = gameState.map.flat().filter(t => t.owner === gameState.currentPlayer);
+            const enemyCities = gameState.map.flat().filter(t => t.improvement === 'Stadt' && t.owner !== gameState.currentPlayer && t.owner !== null);
+            const enemyGoldmines = gameState.map.flat().filter(t => t.type === 'Goldmine' && t.owner !== gameState.currentPlayer);
+            const neutralGoldmines = gameState.map.flat().filter(t => t.type === 'Goldmine' && t.owner === null);
 
             if (!gameState.movingUnits) {
-                if (Math.random() < 0.3 && p.gold >= 150) {
-                    const emptyTile = ownedTiles.find(t => !t.improvement);
+                // Calculate current income
+                let income = ownedTiles.reduce((sum, tile) => {
+                    if (tile.type === 'Goldmine') return sum + tile.level * 10;
+                    if (tile.type === 'Ebene') return sum + (tile.level || 1);
+                    if (tile.improvement === 'Stadt') return sum + tile.cityLevel * 10;
+                    return sum;
+                }, 0);
+
+                // Upgrade cities if we have enough gold and need stronger units
+                if (p.gold >= 150 && ownedTiles.filter(t => t.improvement === 'Stadt').length > 0) {
+                    const cityToUpgrade = ownedTiles
+                        .filter(t => t.improvement === 'Stadt' && t.cityLevel < 3)
+                        .sort((a, b) => b.cityLevel - a.cityLevel)[0];
+                    if (cityToUpgrade) {
+                        gameState.selectedTile = cityToUpgrade;
+                        upgradeCity();
+                        setTimeout(aiTurn, 500);
+                        return;
+                    }
+                }
+
+                // Build new cities if we have enough gold and few cities
+                if (p.gold >= 150 && ownedTiles.filter(t => t.improvement === 'Stadt').length < 2) {
+                    const emptyTile = ownedTiles
+                        .filter(t => !t.improvement && t.type !== 'Berg')
+                        .sort((a, b) => {
+                            const aDist = Math.min(...enemyCities.map(c => getDistance(a, c)));
+                            const bDist = Math.min(...enemyCities.map(c => getDistance(b, c)));
+                            return aDist - bDist;
+                        })[0];
                     if (emptyTile) {
                         gameState.selectedTile = emptyTile;
                         buildCity();
+                        setTimeout(aiTurn, 500);
+                        return;
                     }
                 }
 
-                if (Math.random() < 0.5 && p.gold >= UNITS[p.nation].basic.cost) {
-                    const cityTile = ownedTiles.find(t => t.improvement === 'Stadt' && !t.unit);
-                    if (cityTile) {
-                        gameState.selectedTile = cityTile;
-                        buyUnit(p.hasAdvancedUnit && p.gold >= UNITS[p.nation].advanced.cost ? 'advanced' : 'basic');
-                    }
-                }
-
-                if (Math.random() < 0.4) {
-                    const upgradableTile = ownedTiles.find(t => 
-                        (t.type === 'Goldmine' && p.gold >= 75 && t.level < 3) ||
-                        (t.type === 'Ebene' && p.gold >= 50 && t.level < 3)
-                    );
-                    if (upgradableTile) {
-                        gameState.selectedTile = upgradableTile;
+                // Upgrade goldmines if we have enough gold
+                if (p.gold >= 75 && income < 30) {
+                    const goldmineToUpgrade = ownedTiles
+                        .filter(t => t.type === 'Goldmine' && t.level < 3)
+                        .sort((a, b) => b.level - a.level)[0];
+                    if (goldmineToUpgrade) {
+                        gameState.selectedTile = goldmineToUpgrade;
                         upgradeTile();
+                        setTimeout(aiTurn, 500);
+                        return;
                     }
                 }
 
-                if (Math.random() < 0.4) {
-                    const upgradableCity = ownedTiles.find(t => t.improvement === 'Stadt' && p.gold >= 150 && t.cityLevel < 3);
-                    if (upgradableCity) {
-                        gameState.selectedTile = upgradableCity;
-                        upgradeCity();
+                // Buy units based on strategic needs
+                if (p.gold >= UNITS[p.nation].basic.cost) {
+                    const cities = ownedTiles.filter(t => t.improvement === 'Stadt' && !t.unit);
+                    if (cities.length > 0) {
+                        gameState.selectedTile = cities[0];
+                        if (p.hasAdvancedUnit && p.gold >= UNITS[p.nation].advanced.cost && enemyCities.length > 0) {
+                            buyUnit('advanced');
+                        } else {
+                            buyUnit('basic');
+                        }
+                        setTimeout(aiTurn, 500);
+                        return;
                     }
                 }
 
                 gameState.movingUnits = true;
-                setTimeout(aiTurn, 1000);
+                setTimeout(aiTurn, 500);
                 return;
             }
 
@@ -655,20 +693,51 @@
                 const possibleMoves = [];
                 for (let y = 0; y < gameState.mapHeight; y++) {
                     for (let x = 0; x < gameState.mapWidth; x++) {
-                        const dist = Math.max(Math.abs(x - unitTile.x), Math.abs(y - unitTile.y));
+                        const dist = getDistance(unitTile, gameState.map[y][x]);
                         if (dist <= unit.speed) possibleMoves.push(gameState.map[y][x]);
                     }
                 }
-                if (possibleMoves.length > 0) {
-                    const target = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+                // Prioritize targets
+                const targets = [
+                    ...enemyCities.map(t => ({ tile: t, priority: 10 })),
+                    ...enemyGoldmines.map(t => ({ tile: t, priority: 8 })),
+                    ...neutralGoldmines.map(t => ({ tile: t, priority: 6 })),
+                    ...possibleMoves.filter(t => !t.owner).map(t => ({ tile: t, priority: 2 }))
+                ].filter(t => possibleMoves.includes(t.tile));
+
+                if (targets.length > 0) {
+                    // Sort targets by priority and distance
+                    targets.sort((a, b) => {
+                        const distA = getDistance(unitTile, a.tile);
+                        const distB = getDistance(unitTile, b.tile);
+                        return (b.priority - distA) - (a.priority - distB);
+                    });
+
+                    const target = targets[0].tile;
                     moveUnit(target.x, target.y);
-                    setTimeout(aiTurn, 1000);
+                    setTimeout(aiTurn, 500);
                     return;
+                } else {
+                    // Defensive positioning: move towards nearest owned city if no targets
+                    const nearestCity = ownedTiles
+                        .filter(t => t.improvement === 'Stadt')
+                        .sort((a, b) => getDistance(unitTile, a) - getDistance(unitTile, b))[0];
+                    if (nearestCity) {
+                        const possibleDefensiveMoves = possibleMoves
+                            .filter(t => t.owner === gameState.currentPlayer || !t.owner)
+                            .sort((a, b) => getDistance(a, nearestCity) - getDistance(b, nearestCity));
+                        if (possibleDefensiveMoves.length > 0) {
+                            moveUnit(possibleDefensiveMoves[0].x, possibleDefensiveMoves[0].y);
+                            setTimeout(aiTurn, 500);
+                            return;
+                        }
+                    }
                 }
             }
 
             gameState.movingUnits = false;
-            setTimeout(endTurn, 1000);
+            setTimeout(endTurn, 500);
         }
 
         canvas.addEventListener('click', (e) => {
