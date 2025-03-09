@@ -84,8 +84,8 @@
             movingUnits: true,
             combatLog: '',
             gameOver: false,
-            mapWidth: 0, // Dynamisch gesetzt
-            mapHeight: 0 // Dynamisch gesetzt
+            mapWidth: 0,
+            mapHeight: 0
         };
 
         class Tile {
@@ -113,7 +113,6 @@
             }
         }
 
-        // Spiel starten mit gewählter Größe
         function startGame(size) {
             gameState.mapWidth = size;
             gameState.mapHeight = size;
@@ -126,7 +125,6 @@
             initGame();
         }
 
-        // Initialisierung
         function initGame() {
             gameState.players = [
                 new Player('Luft', false),
@@ -167,7 +165,6 @@
             updateInfo();
         }
 
-        // Zeichnen
         function drawTile(x, y, fill) {
             ctx.fillStyle = fill;
             ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -197,13 +194,12 @@
             }
         }
 
-        // Spiel-Logik
         function updateInfo() {
             if (gameState.gameOver) {
                 const winner = gameState.players.find(p => p.active);
                 infoDiv.innerHTML = `
                     <h2>Sieg!</h2>
-                    ${getVictoryMessage(winner.nation)}
+                    ${winner ? getVictoryMessage(winner.nation) : 'Spiel beendet'}
                     <button onclick="location.reload()">Neues Spiel starten</button>
                 `;
                 return;
@@ -285,9 +281,17 @@
         }
 
         function checkVictory() {
-            const activePlayers = gameState.players.filter(p => p.active);
-            if (activePlayers.length === 1) {
+            const activePlayers = gameState.players.filter(p => {
+                const hasTiles = gameState.map.flat().some(t => t.owner === gameState.players.indexOf(p));
+                p.active = hasTiles;
+                return hasTiles;
+            });
+            
+            if (activePlayers.length <= 1) {
                 gameState.gameOver = true;
+                if (activePlayers.length === 1) {
+                    gameState.currentPlayer = gameState.players.indexOf(activePlayers[0]);
+                }
                 updateInfo();
             }
         }
@@ -430,15 +434,6 @@
                     : `${defender.name} hält stand, ${attacker.name} wird zurückgeschlagen!`;
             }
 
-            if (attackerWins) {
-                const defenderPlayer = gameState.players[defenderTile.owner];
-                const ownedTiles = gameState.map.flat().filter(t => t.owner === defenderTile.owner);
-                if (ownedTiles.length === 1 && ownedTiles[0] === defenderTile) {
-                    log += `<br>${defenderNation} wurde vollständig besiegt! Das letzte Feld (${defenderTile.x}, ${defenderTile.y}) ist gefallen!`;
-                    defenderPlayer.active = false;
-                }
-            }
-
             gameState.combatLog = log;
             return attackerWins;
         }
@@ -468,15 +463,6 @@
                 log += `<br>Die Goldmine wurde erobert und gehört nun ${nation}!`;
             }
             
-            const previousOwner = tile.owner;
-            if (previousOwner !== null && previousOwner !== gameState.currentPlayer) {
-                const ownedTiles = gameState.map.flat().filter(t => t.owner === previousOwner);
-                if (ownedTiles.length === 1 && ownedTiles[0] === tile) {
-                    log += `<br>${NATIONS[previousOwner]} wurde vollständig besiegt! Das letzte Feld (${tile.x}, ${tile.y}) ist gefallen!`;
-                    gameState.players[previousOwner].active = false;
-                }
-            }
-
             gameState.combatLog = log;
             gameState.currentUnitIndex++;
             selectNextUnit();
@@ -508,9 +494,16 @@
                 } else if (newTile.owner !== gameState.currentPlayer) {
                     if (newTile.unit) {
                         if (calculateCombat(unit, newTile.unit, newTile)) {
+                            const oldOwner = newTile.owner;
                             newTile.owner = gameState.currentPlayer;
                             newTile.unit = null;
-                            gameState.players[newTile.owner].units = gameState.players[newTile.owner].units.filter(t => t !== newTile);
+                            gameState.players[oldOwner].units = gameState.players[oldOwner].units.filter(t => t !== newTile);
+                            
+                            const defeatedPlayerTiles = gameState.map.flat().filter(t => t.owner === oldOwner);
+                            if (defeatedPlayerTiles.length === 0) {
+                                gameState.players[oldOwner].active = false;
+                                gameState.combatLog += `<br>${NATIONS[oldOwner]} wurde vollständig besiegt!`;
+                            }
                         }
                         oldTile.unit = null;
                         p.units = p.units.filter(t => t !== oldTile);
@@ -518,15 +511,23 @@
                         gameState.currentUnitIndex++;
                         selectNextUnit();
                     } else {
+                        const oldOwner = newTile.owner;
                         newTile.owner = gameState.currentPlayer;
                         oldTile.unit = null;
                         p.units = p.units.filter(t => t !== oldTile);
                         unit.moved = true;
                         settleLand(unit, newTile);
+                        
+                        const defeatedPlayerTiles = gameState.map.flat().filter(t => t.owner === oldOwner);
+                        if (defeatedPlayerTiles.length === 0) {
+                            gameState.players[oldOwner].active = false;
+                            gameState.combatLog += `<br>${NATIONS[oldOwner]} wurde vollständig besiegt!`;
+                        }
                     }
                 }
                 drawMap();
                 updateInfo();
+                checkVictory();
             } else {
                 gameState.combatLog = `Fehler: ${unit.name} kann nur ${speed} Felder weit bewegen!<br>`;
                 gameState.combatLog += `Entfernung zum Ziel (${x}, ${y}): ${distance} Felder.`;
@@ -575,10 +576,18 @@
             });
 
             let nextPlayer = (gameState.currentPlayer + 1) % 4;
-            while (!gameState.players[nextPlayer].active) {
+            let attempts = 0;
+            while (!gameState.players[nextPlayer].active && attempts < 4) {
                 nextPlayer = (nextPlayer + 1) % 4;
-                if (nextPlayer === gameState.currentPlayer) break;
+                attempts++;
             }
+            
+            if (attempts >= 4) {
+                gameState.gameOver = true;
+                updateInfo();
+                return;
+            }
+
             gameState.currentPlayer = nextPlayer;
             gameState.selectedTile = null;
             gameState.targetTile = null;
@@ -662,7 +671,6 @@
             setTimeout(endTurn, 1000);
         }
 
-        // Event-Handling
         canvas.addEventListener('click', (e) => {
             if (gameState.gameOver) return;
 
