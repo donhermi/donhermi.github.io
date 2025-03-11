@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handbewegungstracking mit Canvas</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        #video {
+            border: 2px solid #000;
+        }
+        #canvas {
+            border: 2px solid #000;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Handbewegungstracking mit Canvas</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <!-- TensorFlow.js und Handpose-Modell laden -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let lastX = null;
+        let lastY = null;
+        let isDrawing = false; // Standardmäßig wird nicht gezeichnet
+
+        // Video-Stream von der Webcam starten
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true
+            });
+            video.srcObject = stream;
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    resolve(video);
+                };
+            });
+        }
+
+        // Funktion zur Berechnung der Distanz zwischen zwei Punkten
+        function calculateDistance(x1, y1, x2, y2) {
+            return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        }
+
+        // Handpose-Modell laden und Tracking starten
+        async function runHandpose() {
+            const model = await handpose.load();
+            console.log("Handpose-Modell geladen");
+
+            await setupCamera();
+            video.play();
+
+            // Kontinuierliches Tracking
+            async function detectHands() {
+                const predictions = await model.estimateHands(video);
+
+                // Canvas leeren (optional, hier nur bei Bedarf)
+                // ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (predictions.length > 0) {
+                    predictions.forEach(prediction => {
+                        const landmarks = prediction.landmarks;
+
+                        // Rechte Hand: Index 8 (Zeigefinger Spitze) für Position
+                        const rightHandX = landmarks[8][0];
+                        const rightHandY = landmarks[8][1];
+
+                        // Punkte für Handzustand: Daumen (4) und Zeigefinger (8)
+                        const thumbX = landmarks[4][0];
+                        const thumbY = landmarks[4][1];
+                        const indexX = landmarks[8][0];
+                        const indexY = landmarks[8][1];
+
+                        // Distanz zwischen Daumen und Zeigefinger berechnen
+                        const distance = calculateDistance(thumbX, thumbY, indexX, indexY);
+
+                        // Hand offen oder geschlossen? (Schwelle: 50 Pixel)
+                        isDrawing = distance > 50;
+
+                        // Zeichnen, wenn die Hand offen ist
+                        if (isDrawing && lastX !== null && lastY !== null) {
+                            ctx.beginPath();
+                            ctx.moveTo(lastX, lastY);
+                            ctx.lineTo(rightHandX, rightHandY);
+                            ctx.strokeStyle = 'blue';
+                            ctx.lineWidth = 3;
+                            ctx.stroke();
+                        }
+
+                        // Aktuelle Position speichern
+                        lastX = rightHandX;
+                        lastY = rightHandY;
+                    });
+                } else {
+                    // Wenn keine Hand erkannt wird, Zeichnen pausieren
+                    isDrawing = false;
+                }
+
+                // Nächsten Frame anfordern
+                requestAnimationFrame(detectHands);
+            }
+
+            detectHands();
+        }
+
+        // Programm starten
+        runHandpose().catch(err => console.error("Fehler beim Starten:", err));
+    </script>
+</body>
+</html>
