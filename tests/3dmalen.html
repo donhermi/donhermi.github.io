@@ -13,7 +13,14 @@
             align-items: center;
         }
         #video {
-            display: none; /* Kamerabild ausblenden */
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid #000;
+            opacity: 0.7;
+            z-index: 50;
         }
         #renderer {
             width: 100vw;
@@ -35,7 +42,7 @@
     </style>
 </head>
 <body>
-    <video id="video" width="640" height="480" autoplay></video>
+    <video id="video" autoplay></video>
     <canvas id="renderer"></canvas>
 
     <!-- Einstellungsmenü -->
@@ -113,9 +120,9 @@
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomSpeed = 0.5;
-            const direction = e.deltaY > 0 ? -1 : 1; // Nach unten = rauszoomen, nach oben = reinzoomen
+            const direction = e.deltaY > 0 ? -1 : 1;
             camera.position.z += direction * zoomSpeed;
-            camera.position.z = Math.max(1, Math.min(50, camera.position.z)); // Begrenze Zoom-Bereich
+            camera.position.z = Math.max(1, Math.min(50, camera.position.z));
         });
 
         // Video-Stream von der Webcam starten
@@ -136,7 +143,7 @@
         function normalizeZ(zRaw) {
             const maxZRaw = 60;
             const minZRaw = -60;
-            const normalizedZ = ((zRaw - minZRaw) / (maxZRaw - minZRaw)) * 2 - 1; // Mappe auf -1 bis 1
+            const normalizedZ = ((zRaw - minZRaw) / (maxZRaw - minZRaw)) * 2 - 1;
             return normalizedZ * 2; // Skaliere auf -2 bis 2
         }
 
@@ -186,11 +193,14 @@
                         const landmarks = prediction.landmarks;
                         let handedness = prediction.handedness || "Unknown";
 
+                        // Debugging: Ausgabe der handedness und landmarks
+                        console.log(`Handedness: ${handedness}`, landmarks);
+
                         // Zeigefinger-Spitze (Index 8)
                         const handX = landmarks[8][0];
                         const handY = landmarks[8][1];
-                        const handZRaw = landmarks[8][2]; // Rohwert
-                        const handZ = normalizeZ(handZRaw); // Normalisierte z-Koordinate
+                        const handZRaw = landmarks[8][2];
+                        const handZ = normalizeZ(handZRaw);
 
                         // Daumen (Index 4)
                         const thumbX = landmarks[4][0];
@@ -217,7 +227,8 @@
                                 } else {
                                     extendLine(currentRightLine, x3D, y3D, z3D);
                                 }
-                            } else if (handedness === "Left") {
+                            }
+                            if (handedness === "Left") {
                                 if (!currentLeftLine) {
                                     currentLeftLine = createLine(x3D, y3D, z3D, leftColorInput.value);
                                     leftLines.push(currentLeftLine);
@@ -227,7 +238,7 @@
                             }
                         } else {
                             if (handedness === "Right" || handedness === "Unknown") currentRightLine = null;
-                            else if (handedness === "Left") currentLeftLine = null;
+                            if (handedness === "Left") currentLeftLine = null;
                         }
                     });
                 }
