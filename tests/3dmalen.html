@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D-Handtracking mit Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #video {
+            display: none; /* Kamerabild ausblenden */
+        }
+        #renderer {
+            width: 100vw;
+            height: 100vh;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #controls label {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="renderer"></canvas>
+
+    <!-- Einstellungsmenü -->
+    <div id="controls">
+        <label>
+            Strichstärke:
+            <input type="range" id="linewidth" min="1" max="10" value="2">
+        </label>
+        <label>
+            Farbe (Rechte Hand):
+            <input type="color" id="rightColor" value="#0000FF">
+        </label>
+        <label>
+            Farbe (Linke Hand):
+            <input type="color" id="leftColor" value="#FF0000">
+        </label>
+    </div>
+
+    <!-- TensorFlow.js und Handpose-Modell laden -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.5.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.5.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.5.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js"></script>
+
+    <!-- Three.js ES-Module laden -->
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('renderer');
+        const linewidthInput = document.getElementById('linewidth');
+        const rightColorInput = document.getElementById('rightColor');
+        const leftColorInput = document.getElementById('leftColor');
+
+        // Three.js Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Kamera positionieren
+        camera.position.set(0, 5, 10);
+        camera.lookAt(0, 0, 0);
+
+        // Linien für beide Hände
+        const rightLines = [];
+        const leftLines = [];
+        let currentRightLine = null;
+        let currentLeftLine = null;
+
+        // Maussteuerung für Rotation
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                scene.rotation.y += deltaX * 0.005;
+                scene.rotation.x += deltaY * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Zoom mit Mausrad
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.5;
+            const direction = e.deltaY > 0 ? -1 : 1; // Nach unten = rauszoomen, nach oben = reinzoomen
+            camera.position.z += direction * zoomSpeed;
+            camera.position.z = Math.max(1, Math.min(50, camera.position.z)); // Begrenze Zoom-Bereich
+        });
+
+        // Video-Stream von der Webcam starten
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => resolve(video);
+            });
+        }
+
+        // Distanz zwischen zwei Punkten berechnen
+        function calculateDistance(x1, y1, x2, y2) {
+            return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        }
+
+        // z-Wert normalisieren
+        function normalizeZ(zRaw) {
+            const maxZRaw = 60;
+            const minZRaw = -60;
+            const normalizedZ = ((zRaw - minZRaw) / (maxZRaw - minZRaw)) * 2 - 1; // Mappe auf -1 bis 1
+            return normalizedZ * 2; // Skaliere auf -2 bis 2
+        }
+
+        // Linie in 3D erstellen
+        function createLine(startX, startY, startZ, color) {
+            const material = new THREE.LineBasicMaterial({
+                color: color,
+                linewidth: parseInt(linewidthInput.value)
+            });
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(3); // 1 Punkt
+            positions[0] = startX;
+            positions[1] = startY;
+            positions[2] = startZ;
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            return { line, geometry };
+        }
+
+        // Linie in 3D erweitern
+        function extendLine(lineObj, x, y, z) {
+            const positions = lineObj.geometry.attributes.position.array;
+            const newPositions = new Float32Array(positions.length + 3);
+            newPositions.set(positions);
+            newPositions[positions.length] = x;
+            newPositions[positions.length + 1] = y;
+            newPositions[positions.length + 2] = z;
+            lineObj.geometry.setAttribute('position', new THREE.BufferAttribute(newPositions, 3));
+            lineObj.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Handpose-Modell laden und Tracking starten
+        async function runHandpose() {
+            const model = await window.handpose.load();
+            console.log("Handpose-Modell geladen");
+
+            await setupCamera();
+            video.play();
+
+            async function detectHands() {
+                const predictions = await model.estimateHands(video);
+                console.log("Predictions:", predictions);
+
+                if (predictions.length > 0) {
+                    predictions.forEach((prediction) => {
+                        const landmarks = prediction.landmarks;
+                        let handedness = prediction.handedness || "Unknown";
+
+                        // Zeigefinger-Spitze (Index 8)
+                        const handX = landmarks[8][0];
+                        const handY = landmarks[8][1];
+                        const handZRaw = landmarks[8][2]; // Rohwert
+                        const handZ = normalizeZ(handZRaw); // Normalisierte z-Koordinate
+
+                        // Daumen (Index 4)
+                        const thumbX = landmarks[4][0];
+                        const thumbY = landmarks[4][1];
+                        const distance = calculateDistance(handX, handY, thumbX, thumbY);
+
+                        const isOpen = distance > 50;
+
+                        // Koordinaten in 3D-Raum umrechnen
+                        const x3D = (handX / 640) * 10 - 5;
+                        const y3D = -((handY / 480) * 7.5 - 3.75);
+                        const z3D = handZ;
+
+                        console.log(`Hand: ${handedness}, x: ${x3D}, y: ${y3D}, zRaw: ${handZRaw}, z: ${z3D}, isOpen: ${isOpen}`);
+
+                        // Linien zeichnen mit sanfter Beschränkung
+                        const minZ = -5;
+                        const maxZ = 5;
+                        if (isOpen && z3D >= minZ && z3D <= maxZ) {
+                            if (handedness === "Right" || handedness === "Unknown") {
+                                if (!currentRightLine) {
+                                    currentRightLine = createLine(x3D, y3D, z3D, rightColorInput.value);
+                                    rightLines.push(currentRightLine);
+                                } else {
+                                    extendLine(currentRightLine, x3D, y3D, z3D);
+                                }
+                            } else if (handedness === "Left") {
+                                if (!currentLeftLine) {
+                                    currentLeftLine = createLine(x3D, y3D, z3D, leftColorInput.value);
+                                    leftLines.push(currentLeftLine);
+                                } else {
+                                    extendLine(currentLeftLine, x3D, y3D, z3D);
+                                }
+                            }
+                        } else {
+                            if (handedness === "Right" || handedness === "Unknown") currentRightLine = null;
+                            else if (handedness === "Left") currentLeftLine = null;
+                        }
+                    });
+                }
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(detectHands);
+            }
+
+            detectHands();
+        }
+
+        // Programm starten
+        runHandpose().catch(err => console.error("Fehler:", err));
+
+        // Fenstergröße anpassen
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
