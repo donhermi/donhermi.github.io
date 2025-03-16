@@ -39,6 +39,10 @@
             display: block;
             margin-bottom: 5px;
         }
+        #exportBtn {
+            margin-top: 10px;
+            padding: 5px 10px;
+        }
     </style>
 </head>
 <body>
@@ -59,23 +63,25 @@
             Farbe (Linke Hand):
             <input type="color" id="leftColor" value="#FF0000">
         </label>
+        <button id="exportBtn">Exportieren (OBJ/GLTF)</button>
     </div>
 
-    <!-- TensorFlow.js und Handpose-Modell laden -->
+    <!-- Bibliotheken laden -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.5.0/dist/tf-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.5.0/dist/tf-converter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.5.0/dist/tf-backend-webgl.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/exporters/GLTFExporter.js"></script>
 
-    <!-- Three.js ES-Module laden -->
-    <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-
+    <!-- Hauptscript -->
+    <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('renderer');
         const linewidthInput = document.getElementById('linewidth');
         const rightColorInput = document.getElementById('rightColor');
         const leftColorInput = document.getElementById('leftColor');
+        const exportBtn = document.getElementById('exportBtn');
 
         // Three.js Setup
         const scene = new THREE.Scene();
@@ -144,7 +150,7 @@
             const maxZRaw = 60;
             const minZRaw = -60;
             const normalizedZ = ((zRaw - minZRaw) / (maxZRaw - minZRaw)) * 2 - 1;
-            return normalizedZ * 2; // Skaliere auf -2 bis 2
+            return normalizedZ * 2;
         }
 
         // Linie in 3D erstellen
@@ -154,7 +160,7 @@
                 linewidth: parseInt(linewidthInput.value)
             });
             const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(3); // 1 Punkt
+            const positions = new Float32Array(3);
             positions[0] = startX;
             positions[1] = startY;
             positions[2] = startZ;
@@ -193,30 +199,23 @@
                         const landmarks = prediction.landmarks;
                         let handedness = prediction.handedness || "Unknown";
 
-                        // Debugging: Ausgabe der handedness und landmarks
-                        console.log(`Handedness: ${handedness}`, landmarks);
-
-                        // Zeigefinger-Spitze (Index 8)
                         const handX = landmarks[8][0];
                         const handY = landmarks[8][1];
                         const handZRaw = landmarks[8][2];
                         const handZ = normalizeZ(handZRaw);
 
-                        // Daumen (Index 4)
                         const thumbX = landmarks[4][0];
                         const thumbY = landmarks[4][1];
                         const distance = calculateDistance(handX, handY, thumbX, thumbY);
 
                         const isOpen = distance > 50;
 
-                        // Koordinaten in 3D-Raum umrechnen
                         const x3D = (handX / 640) * 10 - 5;
                         const y3D = -((handY / 480) * 7.5 - 3.75);
                         const z3D = handZ;
 
                         console.log(`Hand: ${handedness}, x: ${x3D}, y: ${y3D}, zRaw: ${handZRaw}, z: ${z3D}, isOpen: ${isOpen}`);
 
-                        // Linien zeichnen mit sanfter Beschränkung
                         const minZ = -5;
                         const maxZ = 5;
                         if (isOpen && z3D >= minZ && z3D <= maxZ) {
@@ -249,6 +248,65 @@
 
             detectHands();
         }
+
+        // Export-Funktion
+        function exportModel() {
+            const exportGroup = new THREE.Group();
+            
+            rightLines.forEach(lineObj => {
+                exportGroup.add(lineObj.line);
+            });
+            
+            leftLines.forEach(lineObj => {
+                exportGroup.add(lineObj.line);
+            });
+
+            // OBJ Export
+            const objData = exportToOBJ(exportGroup);
+            const objBlob = new Blob([objData], { type: 'text/plain' });
+            const objUrl = URL.createObjectURL(objBlob);
+            const objLink = document.createElement('a');
+            objLink.href = objUrl;
+            objLink.download = 'hand_drawing.obj';
+            objLink.click();
+
+            // GLTF Export
+            const gltfExporter = new THREE.GLTFExporter();
+            gltfExporter.parse(exportGroup, (gltf) => {
+                const gltfString = JSON.stringify(gltf);
+                const gltfBlob = new Blob([gltfString], { type: 'application/json' });
+                const gltfUrl = URL.createObjectURL(gltfBlob);
+                const gltfLink = document.createElement('a');
+                gltfLink.href = gltfUrl;
+                gltfLink.download = 'hand_drawing.gltf';
+                gltfLink.click();
+            }, { binary: false });
+        }
+
+        function exportToOBJ(object) {
+            let vertexCount = 0;
+            const vertices = [];
+            const faces = [];
+
+            object.traverse((child) => {
+                if (child.isLine) {
+                    const positions = child.geometry.attributes.position.array;
+                    for (let i = 0; i < positions.length; i += 3) {
+                        vertices.push(`v ${positions[i]} ${positions[i + 1]} ${positions[i + 2]}`);
+                    }
+                    
+                    for (let i = 0; i < positions.length / 3 - 1; i++) {
+                        faces.push(`l ${vertexCount + i + 1} ${vertexCount + i + 2}`);
+                    }
+                    vertexCount += positions.length / 3;
+                }
+            });
+
+            return [...vertices, '', ...faces].join('\n');
+        }
+
+        // Event-Listener für Export-Button
+        exportBtn.addEventListener('click', exportModel);
 
         // Programm starten
         runHandpose().catch(err => console.error("Fehler:", err));
