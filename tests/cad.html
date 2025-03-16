@@ -26,6 +26,8 @@
         <label>Farbe: <input type="color" id="color" onchange="updateSelected()"></label><br>
         <button onclick="exportSTL()">STL Export</button>
         <button onclick="exportOBJ()">OBJ Export</button><br>
+        <button onclick="document.getElementById('fileInput').click()">Import</button>
+        <input type="file" id="fileInput" style="display:none" accept=".stl,.obj,.gltf,.glb" onchange="importFile(event)"><br>
         <button onclick="booleanOperation('union')">Vereinigung</button>
         <button onclick="booleanOperation('subtract')">Subtraktion</button>
         <button onclick="booleanOperation('intersect')">Schnittmenge</button>
@@ -37,6 +39,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/STLExporter.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/OBJExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
 
     <script>
         // Szene einrichten
@@ -61,6 +66,11 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
+        // Loader initialisieren
+        const stlLoader = new THREE.STLLoader();
+        const objLoader = new THREE.OBJLoader();
+        const gltfLoader = new THREE.GLTFLoader();
+
         // Ausgewähltes Objekt
         let selectedObject = null;
         let secondSelectedObject = null;
@@ -82,12 +92,75 @@
             selectObject(mesh);
         }
 
+        // Datei importieren
+        function importFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileName = file.name.toLowerCase();
+            const reader = new FileReader();
+
+            if (fileName.endsWith('.stl')) {
+                reader.onload = function(e) {
+                    const geometry = stlLoader.parse(e.target.result);
+                    const material = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(0, 0, 0);
+                    scene.add(mesh);
+                    selectObject(mesh);
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (fileName.endsWith('.obj')) {
+                reader.onload = function(e) {
+                    const object = objLoader.parse(e.target.result);
+                    normalizeObject(object);
+                    scene.add(object);
+                    selectObject(object.children[0] || object);
+                };
+                reader.readAsText(file);
+            } else if (fileName.endsWith('.gltf') || fileName.endsWith('.glb')) {
+                reader.onload = function(e) {
+                    gltfLoader.parse(e.target.result, '', (gltf) => {
+                        const object = gltf.scene;
+                        normalizeObject(object);
+                        scene.add(object);
+                        selectObject(object.children[0] || object);
+                    }, (error) => console.error('GLTF loading error:', error));
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            event.target.value = '';
+        }
+
+        // Normalize imported objects
+        function normalizeObject(object) {
+            object.traverse(child => {
+                if (child.isMesh && !child.material) {
+                    child.material = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+                }
+            });
+        }
+
         // Objekt auswählen
         function selectObject(object) {
-            if (selectedObject) selectedObject.material.emissive.set(0x000000);
-            selectedObject = object;
+            // Clear previous selection
             if (selectedObject) {
-                selectedObject.material.emissive.set(0x555555);
+                selectedObject.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.emissive.set(0x000000);
+                    }
+                });
+            }
+            
+            selectedObject = object;
+            
+            if (selectedObject) {
+                // Highlight selected object
+                selectedObject.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.emissive.set(0x555555);
+                    }
+                });
                 updateControls();
             } else {
                 resetControls();
@@ -96,14 +169,29 @@
 
         // Zweites Objekt für Boolean-Operationen auswählen
         function selectSecondObject(object) {
-            if (secondSelectedObject) secondSelectedObject.material.emissive.set(0x000000);
+            if (secondSelectedObject) {
+                secondSelectedObject.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.emissive.set(0x000000);
+                    }
+                });
+            }
+            
             secondSelectedObject = object;
-            if (secondSelectedObject) secondSelectedObject.material.emissive.set(0xaaaaaa);
+            
+            if (secondSelectedObject) {
+                secondSelectedObject.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.emissive.set(0xaaaaaa);
+                    }
+                });
+            }
         }
 
         // Steuerung aktualisieren
         function updateControls() {
             if (!selectedObject) return;
+            // Use the root object's position/rotation/scale
             document.getElementById('posX').value = selectedObject.position.x;
             document.getElementById('posY').value = selectedObject.position.y;
             document.getElementById('posZ').value = selectedObject.position.z;
@@ -111,7 +199,17 @@
             document.getElementById('rotX').value = selectedObject.rotation.x;
             document.getElementById('rotY').value = selectedObject.rotation.y;
             document.getElementById('rotZ').value = selectedObject.rotation.z;
-            document.getElementById('color').value = '#' + selectedObject.material.color.getHexString();
+            
+            // Find first mesh for color
+            let firstMesh = null;
+            selectedObject.traverse(child => {
+                if (child.isMesh && child.material && !firstMesh) {
+                    firstMesh = child;
+                }
+            });
+            if (firstMesh) {
+                document.getElementById('color').value = '#' + firstMesh.material.color.getHexString();
+            }
         }
 
         // Objekt aktualisieren
@@ -129,7 +227,14 @@
                 parseFloat(document.getElementById('rotY').value) || 0,
                 parseFloat(document.getElementById('rotZ').value) || 0
             );
-            selectedObject.material.color.set(document.getElementById('color').value);
+            
+            // Apply color to all meshes
+            const color = document.getElementById('color').value;
+            selectedObject.traverse(child => {
+                if (child.isMesh && child.material) {
+                    child.material.color.set(color);
+                }
+            });
         }
 
         // Ausgewähltes Objekt löschen
@@ -180,15 +285,19 @@
             a.click();
         }
 
-
         // Mausklick-Ereignisse
         renderer.domElement.addEventListener('click', (event) => {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / (window.innerHeight * 0.8)) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children.filter(obj => obj.isMesh));
+            const intersects = raycaster.intersectObjects(scene.children, true);
             if (intersects.length > 0) {
-                selectObject(intersects[0].object);
+                // Select the topmost parent that contains the intersected mesh
+                let obj = intersects[0].object;
+                while (obj.parent && obj.parent.type !== 'Scene') {
+                    obj = obj.parent;
+                }
+                selectObject(obj);
             } else {
                 selectObject(null);
             }
@@ -199,9 +308,13 @@
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / (window.innerHeight * 0.8)) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children.filter(obj => obj.isMesh));
+            const intersects = raycaster.intersectObjects(scene.children, true);
             if (intersects.length > 0) {
-                selectSecondObject(intersects[0].object);
+                let obj = intersects[0].object;
+                while (obj.parent && obj.parent.type !== 'Scene') {
+                    obj = obj.parent;
+                }
+                selectSecondObject(obj);
             }
         });
 
