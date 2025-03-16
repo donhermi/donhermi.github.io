@@ -26,17 +26,19 @@
         <label>Farbe: <input type="color" id="color" onchange="updateSelected()"></label><br>
         <button onclick="exportSTL()">STL Export</button>
         <button onclick="exportOBJ()">OBJ Export</button><br>
+        <button onclick="booleanOperation('union')">Vereinigung</button>
+        <button onclick="booleanOperation('subtract')">Subtraktion</button>
+        <button onclick="booleanOperation('intersect')">Schnittmenge</button>
     </div>
     <canvas id="canvas"></canvas>
 
-    <script type="module">
-        // Three.js und Abhängigkeiten als Module importieren
-        import * as THREE from 'https://unpkg.com/three@0.134.0/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.134.0/examples/jsm/controls/OrbitControls.js';
-        import { STLExporter } from 'https://unpkg.com/three@0.134.0/examples/jsm/exporters/STLExporter.js';
-        import { OBJExporter } from 'https://unpkg.com/three@0.134.0/examples/jsm/exporters/OBJExporter.js';
+    <!-- Bibliotheken laden -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/OBJExporter.js"></script>
 
-
+    <script>
         // Szene einrichten
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -55,7 +57,7 @@
 
         // Kamera-Position und Steuerung
         camera.position.set(5, 5, 5);
-        const controls = new OrbitControls(camera, renderer.domElement);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
@@ -66,7 +68,7 @@
         const mouse = new THREE.Vector2();
 
         // Formen hinzufügen
-        window.addShape = function(type) {
+        function addShape(type) {
             let geometry;
             switch (type) {
                 case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
@@ -78,7 +80,7 @@
             mesh.position.set(0, 0.5, 0);
             scene.add(mesh);
             selectObject(mesh);
-        };
+        }
 
         // Objekt auswählen
         function selectObject(object) {
@@ -113,7 +115,7 @@
         }
 
         // Objekt aktualisieren
-        window.updateSelected = function() {
+        function updateSelected() {
             if (!selectedObject) return;
             selectedObject.position.set(
                 parseFloat(document.getElementById('posX').value) || 0,
@@ -128,10 +130,10 @@
                 parseFloat(document.getElementById('rotZ').value) || 0
             );
             selectedObject.material.color.set(document.getElementById('color').value);
-        };
+        }
 
         // Ausgewähltes Objekt löschen
-        window.deleteSelected = function() {
+        function deleteSelected() {
             if (selectedObject) {
                 scene.remove(selectedObject);
                 selectedObject = null;
@@ -141,7 +143,7 @@
                 scene.remove(secondSelectedObject);
                 secondSelectedObject = null;
             }
-        };
+        }
 
         // Steuerung zurücksetzen
         function resetControls() {
@@ -156,18 +158,18 @@
         }
 
         // STL-Export
-        window.exportSTL = function() {
-            const exporter = new STLExporter();
+        function exportSTL() {
+            const exporter = new THREE.STLExporter();
             const result = exporter.parse(scene);
             downloadFile(result, 'hermanns_cad.stl', 'application/octet-stream');
-        };
+        }
 
         // OBJ-Export
-        window.exportOBJ = function() {
-            const exporter = new OBJExporter();
+        function exportOBJ() {
+            const exporter = new THREE.OBJExporter();
             const result = exporter.parse(scene);
             downloadFile(result, 'hermanns_cad.obj', 'text/plain');
-        };
+        }
 
         // Datei herunterladen
         function downloadFile(content, fileName, mimeType) {
@@ -177,6 +179,7 @@
             a.download = fileName;
             a.click();
         }
+
 
         // Mausklick-Ereignisse
         renderer.domElement.addEventListener('click', (event) => {
