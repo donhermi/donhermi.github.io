@@ -26,22 +26,16 @@
         <label>Farbe: <input type="color" id="color" onchange="updateSelected()"></label><br>
         <button onclick="exportSTL()">STL Export</button>
         <button onclick="exportOBJ()">OBJ Export</button><br>
-        <button onclick="booleanOperation('union')">Vereinigung</button>
-        <button onclick="booleanOperation('subtract')">Subtraktion</button>
-        <button onclick="booleanOperation('intersect')">Schnittmenge</button>
     </div>
     <canvas id="canvas"></canvas>
 
-    <!-- Bibliotheken laden -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/STLExporter.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/OBJExporter.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three-csg-ts@3.1.0/dist/three-csg.module.js" type="module"></script>
-
     <script type="module">
-        // CSG aus three-csg-ts importieren
-        import { CSG } from 'https://cdn.jsdelivr.net/npm/three-csg-ts@3.1.0/dist/three-csg.module.js';
+        // Three.js und Abhängigkeiten als Module importieren
+        import * as THREE from 'https://unpkg.com/three@0.134.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.134.0/examples/jsm/controls/OrbitControls.js';
+        import { STLExporter } from 'https://unpkg.com/three@0.134.0/examples/jsm/exporters/STLExporter.js';
+        import { OBJExporter } from 'https://unpkg.com/three@0.134.0/examples/jsm/exporters/OBJExporter.js';
+
 
         // Szene einrichten
         const scene = new THREE.Scene();
@@ -61,7 +55,7 @@
 
         // Kamera-Position und Steuerung
         camera.position.set(5, 5, 5);
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
@@ -163,14 +157,14 @@
 
         // STL-Export
         window.exportSTL = function() {
-            const exporter = new THREE.STLExporter();
+            const exporter = new STLExporter();
             const result = exporter.parse(scene);
             downloadFile(result, 'hermanns_cad.stl', 'application/octet-stream');
         };
 
         // OBJ-Export
         window.exportOBJ = function() {
-            const exporter = new THREE.OBJExporter();
+            const exporter = new OBJExporter();
             const result = exporter.parse(scene);
             downloadFile(result, 'hermanns_cad.obj', 'text/plain');
         };
@@ -183,34 +177,6 @@
             a.download = fileName;
             a.click();
         }
-
-        // Boolean-Operationen mit CSG
-        window.booleanOperation = function(type) {
-            if (!selectedObject || !secondSelectedObject) {
-                alert('Bitte wähle zwei Objekte aus: Erstes mit Linksklick, zweites mit Rechtsklick.');
-                return;
-            }
-
-            const csg1 = CSG.fromMesh(selectedObject);
-            const csg2 = CSG.fromMesh(secondSelectedObject);
-            let resultCSG;
-
-            switch (type) {
-                case 'union': resultCSG = csg1.union(csg2); break;
-                case 'subtract': resultCSG = csg1.subtract(csg2); break;
-                case 'intersect': resultCSG = csg1.intersect(csg2); break;
-            }
-
-            const resultMesh = CSG.toMesh(resultCSG, selectedObject.matrix, selectedObject.material);
-            scene.add(resultMesh);
-
-            // Alte Objekte entfernen
-            scene.remove(selectedObject);
-            scene.remove(secondSelectedObject);
-            selectedObject = resultMesh;
-            secondSelectedObject = null;
-            selectObject(resultMesh);
-        };
 
         // Mausklick-Ereignisse
         renderer.domElement.addEventListener('click', (event) => {
