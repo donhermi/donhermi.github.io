@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple CAD mit Three.js</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #canvas { width: 100%; height: 80vh; }
+        #controls { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; }
+        button { margin: 5px; padding: 5px 10px; }
+        input { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button onclick="addShape('cube')">Würfel</button>
+        <button onclick="addShape('sphere')">Kugel</button>
+        <button onclick="addShape('cylinder')">Zylinder</button>
+        <button onclick="deleteSelected()">Auswahl löschen</button><br>
+        <label>Position X: <input type="number" id="posX" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Position Y: <input type="number" id="posY" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Position Z: <input type="number" id="posZ" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Skalierung: <input type="number" id="scale" step="0.1" value="1" onchange="updateSelected()"></label><br>
+        <label>Rotation X: <input type="number" id="rotX" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Rotation Y: <input type="number" id="rotY" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Rotation Z: <input type="number" id="rotZ" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Farbe: <input type="color" id="color" onchange="updateSelected()"></label>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <!-- Three.js und OrbitControls laden -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Szene einrichten
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+        renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
+        
+        // Licht
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 5, 5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040)); // Weiches Umgebungslicht
+
+        // Grid als Referenz
+        const grid = new THREE.GridHelper(10, 10);
+        scene.add(grid);
+
+        // Kamera-Position und Steuerung
+        camera.position.set(5, 5, 5);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Ausgewähltes Objekt
+        let selectedObject = null;
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Formen hinzufügen
+        function addShape(type) {
+            let geometry;
+            switch (type) {
+                case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
+                case 'sphere': geometry = new THREE.SphereGeometry(0.5, 32, 32); break;
+                case 'cylinder': geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32); break;
+            }
+            const material = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(0, 0.5, 0);
+            scene.add(mesh);
+            selectObject(mesh);
+        }
+
+        // Objekt auswählen
+        function selectObject(object) {
+            if (selectedObject) selectedObject.material.emissive.set(0x000000); // Alte Auswahl zurücksetzen
+            selectedObject = object;
+            if (selectedObject) {
+                selectedObject.material.emissive.set(0x555555); // Hervorheben
+                updateControls();
+            }
+        }
+
+        // Steuerung aktualisieren
+        function updateControls() {
+            if (!selectedObject) return;
+            document.getElementById('posX').value = selectedObject.position.x;
+            document.getElementById('posY').value = selectedObject.position.y;
+            document.getElementById('posZ').value = selectedObject.position.z;
+            document.getElementById('scale').value = selectedObject.scale.x;
+            document.getElementById('rotX').value = selectedObject.rotation.x;
+            document.getElementById('rotY').value = selectedObject.rotation.y;
+            document.getElementById('rotZ').value = selectedObject.rotation.z;
+            document.getElementById('color').value = '#' + selectedObject.material.color.getHexString();
+        }
+
+        // Objekt aktualisieren
+        function updateSelected() {
+            if (!selectedObject) return;
+            selectedObject.position.set(
+                parseFloat(document.getElementById('posX').value) || 0,
+                parseFloat(document.getElementById('posY').value) || 0,
+                parseFloat(document.getElementById('posZ').value) || 0
+            );
+            const scale = parseFloat(document.getElementById('scale').value) || 1;
+            selectedObject.scale.set(scale, scale, scale);
+            selectedObject.rotation.set(
+                parseFloat(document.getElementById('rotX').value) || 0,
+                parseFloat(document.getElementById('rotY').value) || 0,
+                parseFloat(document.getElementById('rotZ').value) || 0
+            );
+            selectedObject.material.color.set(document.getElementById('color').value);
+        }
+
+        // Ausgewähltes Objekt löschen
+        function deleteSelected() {
+            if (selectedObject) {
+                scene.remove(selectedObject);
+                selectedObject = null;
+                resetControls();
+            }
+        }
+
+        // Steuerung zurücksetzen
+        function resetControls() {
+            document.getElementById('posX').value = '';
+            document.getElementById('posY').value = '';
+            document.getElementById('posZ').value = '';
+            document.getElementById('scale').value = 1;
+            document.getElementById('rotX').value = '';
+            document.getElementById('rotY').value = '';
+            document.getElementById('rotZ').value = '';
+            document.getElementById('color').value = '#ffffff';
+        }
+
+        // Mausklick-Ereignis zum Auswählen
+        renderer.domElement.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / (window.innerHeight * 0.8)) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children.filter(obj => obj.isMesh));
+            if (intersects.length > 0) {
+                selectObject(intersects[0].object);
+            } else {
+                selectObject(null);
+            }
+        });
+
+        // Render-Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Fenstergröße anpassen
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / (window.innerHeight * 0.8);
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
+        });
+    </script>
+</body>
+</html>
