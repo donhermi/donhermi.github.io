@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hermanns CAD</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #canvas { width: 100%; height: 80vh; }
+        #controls { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; }
+        button { margin: 5px; padding: 5px 10px; }
+        input { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button onclick="addShape('cube')">Würfel</button>
+        <button onclick="addShape('sphere')">Kugel</button>
+        <button onclick="addShape('cylinder')">Zylinder</button>
+        <button onclick="deleteSelected()">Auswahl löschen</button><br>
+        <label>Position X: <input type="number" id="posX" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Position Y: <input type="number" id="posY" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Position Z: <input type="number" id="posZ" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Skalierung: <input type="number" id="scale" step="0.1" value="1" onchange="updateSelected()"></label><br>
+        <label>Rotation X: <input type="number" id="rotX" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Rotation Y: <input type="number" id="rotY" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Rotation Z: <input type="number" id="rotZ" step="0.1" onchange="updateSelected()"></label><br>
+        <label>Farbe: <input type="color" id="color" onchange="updateSelected()"></label><br>
+        <button onclick="exportSTL()">STL Export</button>
+        <button onclick="exportOBJ()">OBJ Export</button><br>
+        <button onclick="document.getElementById('fileInput').click()">Import</button>
+        <input type="file" id="fileInput" style="display:none" accept=".stl,.obj,.gltf,.glb" onchange="importFile(event)"><br>
+        <button onclick="booleanOperation('union')">Vereinigung</button>
+        <button onclick="booleanOperation('subtract')">Subtraktion</button>
+        <button onclick="booleanOperation('intersect')">Schnittmenge</button>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <!-- Bibliotheken laden -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/OBJExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        // Angepasste ThreeBSP-Implementierung
+        'use strict';
+        window.ThreeBSP = (function() {
+            var ThreeBSP,
+                EPSILON = 1e-5,
+                COPLANAR = 0,
+                FRONT = 1,
+                BACK = 2,
+                SPANNING = 3;
+
+            ThreeBSP = function(mesh) {
+                if (!(mesh instanceof THREE.Mesh) || !mesh.geometry || !(mesh.geometry instanceof THREE.BufferGeometry)) {
+                    throw 'ThreeBSP: Input must be a Mesh with BufferGeometry';
+                }
+
+                this.matrix = mesh.matrixWorld.clone();
+                this.geometry = mesh.geometry;
+                this.polygons = this.bufferGeometryToPolygons(this.geometry);
+                this.tree = new ThreeBSP.Node(this.polygons);
+            };
+
+            ThreeBSP.prototype.bufferGeometryToPolygons = function(geometry) {
+                const polygons = [];
+                const positions = geometry.attributes.position.array;
+                const normals = geometry.attributes.normal ? geometry.attributes.normal.array : null;
+                const uvs = geometry.attributes.uv ? geometry.attributes.uv.array : null;
+                const indices = geometry.index ? geometry.index.array : null;
+
+                const vertexCount = positions.length / 3;
+                const vertices = [];
+                for (let i = 0; i < vertexCount; i++) {
+                    const x = positions[i * 3];
+                    const y = positions[i * 3 + 1];
+                    const z = positions[i * 3 + 2];
+                    const normal = normals ? new THREE.Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]) : new THREE.Vector3();
+                    const uv = uvs ? new THREE.Vector2(uvs[i * 2], uvs[i * 2 + 1]) : new THREE.Vector2();
+                    vertices.push(new ThreeBSP.Vertex(x, y, z, normal, uv));
+                }
+
+                if (indices) {
+                    for (let i = 0; i < indices.length; i += 3) {
+                        const polyVertices = [
+                            vertices[indices[i]].clone(),
+                            vertices[indices[i + 1]].clone(),
+                            vertices[indices[i + 2]].clone()
+                        ];
+                        if (polyVertices.length === 3) {
+                            const poly = new ThreeBSP.Polygon(polyVertices);
+                            if (poly.normal && poly.normal.lengthSq() > 0) {
+                                polygons.push(poly);
+                            }
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < vertexCount; i += 3) {
+                        const polyVertices = [
+                            vertices[i].clone(),
+                            vertices[i + 1].clone(),
+                            vertices[i + 2].clone()
+                        ];
+                        if (polyVertices.length === 3) {
+                            const poly = new ThreeBSP.Polygon(polyVertices);
+                            if (poly.normal && poly.normal.lengthSq() > 0) {
+                                polygons.push(poly);
+                            }
+                        }
+                    }
+                }
+
+                return polygons;
+            };
+
+            ThreeBSP.prototype.subtract = function(other) {
+                var a = this.tree.clone(), b = other.tree.clone();
+                a.invert(); a.clipTo(b); b.clipTo(a); b.invert(); b.clipTo(a); b.invert();
+                a.build(b.allPolygons()); a.invert();
+                const resultMesh = this.toMesh(this.matrix, a);
+                const result = new ThreeBSP(resultMesh);
+                result.matrix = this.matrix.clone();
+                return result;
+            };
+
+            ThreeBSP.prototype.union = function(other) {
+                var a = this.tree.clone(), b = other.tree.clone();
+                a.clipTo(b); b.clipTo(a); b.invert(); b.clipTo(a); b.invert();
+                a.build(b.allPolygons());
+                const resultMesh = this.toMesh(this.matrix, a);
+                const result = new ThreeBSP(resultMesh);
+                result.matrix = this.matrix.clone();
+                return result;
+            };
+
+            ThreeBSP.prototype.intersect = function(other) {
+                var a = this.tree.clone(), b = other.tree.clone();
+                a.invert(); b.clipTo(a); b.invert(); a.clipTo(b); b.clipTo(a);
+                a.build(b.allPolygons()); a.invert();
+                const resultMesh = this.toMesh(this.matrix, a);
+                const result = new ThreeBSP(resultMesh);
+                result.matrix = this.matrix.clone();
+                return result;
+            };
+
+            ThreeBSP.prototype.toMesh = function(matrix, node) {
+                const polygons = node ? node.allPolygons() : this.tree.allPolygons();
+                const geometry = new THREE.BufferGeometry();
+                const positions = [];
+                const normals = [];
+                const uvs = [];
+                const indices = [];
+
+                const vertexMap = new Map();
+
+                polygons.forEach((polygon, polyIndex) => {
+                    const vertices = polygon.vertices;
+                    for (let i = 2; i < vertices.length; i++) {
+                        const v0 = vertices[0];
+                        const v1 = vertices[i - 1];
+                        const v2 = vertices[i];
+
+                        const key0 = `${v0.x},${v0.y},${v0.z}`;
+                        const key1 = `${v1.x},${v1.y},${v1.z}`;
+                        const key2 = `${v2.x},${v2.y},${v2.z}`;
+
+                        let idx0 = vertexMap.get(key0);
+                        let idx1 = vertexMap.get(key1);
+                        let idx2 = vertexMap.get(key2);
+
+                        if (idx0 === undefined) {
+                            idx0 = positions.length / 3;
+                            vertexMap.set(key0, idx0);
+                            positions.push(v0.x, v0.y, v0.z);
+                            normals.push(v0.normal.x, v0.normal.y, v0.normal.z);
+                            uvs.push(v0.uv.x, v0.uv.y);
+                        }
+                        if (idx1 === undefined) {
+                            idx1 = positions.length / 3;
+                            vertexMap.set(key1, idx1);
+                            positions.push(v1.x, v1.y, v1.z);
+                            normals.push(v1.normal.x, v1.normal.y, v1.normal.z);
+                            uvs.push(v1.uv.x, v1.uv.y);
+                        }
+                        if (idx2 === undefined) {
+                            idx2 = positions.length / 3;
+                            vertexMap.set(key2, idx2);
+                            positions.push(v2.x, v2.y, v2.z);
+                            normals.push(v2.normal.x, v2.normal.y, v2.normal.z);
+                            uvs.push(v2.uv.x, v2.uv.y);
+                        }
+
+                        indices.push(idx0, idx1, idx2);
+                    }
+                });
+
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+                geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+                geometry.setIndex(indices);
+                geometry.computeVertexNormals();
+
+                const mesh = new THREE.Mesh(geometry);
+                const effectiveMatrix = matrix instanceof THREE.Matrix4 ? matrix : new THREE.Matrix4();
+                mesh.applyMatrix4(effectiveMatrix);
+                return mesh;
+            };
+
+            ThreeBSP.Polygon = function(vertices) {
+                this.vertices = vertices || [];
+                this.normal = new THREE.Vector3();
+                this.w = 0;
+                if (this.vertices.length >= 3) {
+                    this.calculateProperties();
+                }
+            };
+
+            ThreeBSP.Polygon.prototype.calculateProperties = function() {
+                if (this.vertices.length < 3) {
+                    this.normal.set(0, 0, 0);
+                    this.w = 0;
+                    return this;
+                }
+                const a = this.vertices[0], b = this.vertices[1], c = this.vertices[2];
+                try {
+                    const ab = b.clone().subtract(a);
+                    const ac = c.clone().subtract(a);
+                    this.normal.copy(ab.cross(ac));
+                    const lengthSq = this.normal.lengthSq();
+                    if (lengthSq < EPSILON * EPSILON) {
+                        this.normal.set(0, 0, 0);
+                        this.w = 0;
+                    } else {
+                        this.normal.normalize();
+                        this.w = this.normal.dot(a);
+                    }
+                } catch (e) {
+                    console.warn("Fehler bei Normalenberechnung:", e);
+                    this.normal.set(0, 0, 0);
+                    this.w = 0;
+                }
+                return this;
+            };
+
+            ThreeBSP.Polygon.prototype.clone = function() {
+                return new ThreeBSP.Polygon(this.vertices.map(v => v.clone()));
+            };
+
+            ThreeBSP.Polygon.prototype.flip = function() {
+                if (this.normal.lengthSq() > 0) {
+                    this.normal.multiplyScalar(-1);
+                    this.w *= -1;
+                    this.vertices.reverse();
+                }
+                return this;
+            };
+
+            ThreeBSP.Polygon.prototype.classifyVertex = function(vertex) {
+                if (this.normal.lengthSq() === 0) return COPLANAR;
+                const side_value = this.normal.dot(vertex) - this.w;
+                if (side_value < -EPSILON) return BACK;
+                if (side_value > EPSILON) return FRONT;
+                return COPLANAR;
+            };
+
+            ThreeBSP.Polygon.prototype.classifySide = function(polygon) {
+                if (this.normal.lengthSq() === 0) return COPLANAR;
+                let num_positive = 0, num_negative = 0;
+                polygon.vertices.forEach(vertex => {
+                    const classification = this.classifyVertex(vertex);
+                    if (classification === FRONT) num_positive++;
+                    else if (classification === BACK) num_negative++;
+                });
+                if (num_positive === polygon.vertices.length && num_negative === 0) return FRONT;
+                if (num_positive === 0 && num_negative === polygon.vertices.length) return BACK;
+                if (num_positive > 0 && num_negative > 0) return SPANNING;
+                return COPLANAR;
+            };
+
+            ThreeBSP.Polygon.prototype.splitPolygon = function(polygon, coplanar_front, coplanar_back, front, back) {
+                const classification = this.classifySide(polygon);
+                if (classification === COPLANAR) {
+                    if (this.normal.lengthSq() > 0 && polygon.normal.lengthSq() > 0) {
+                        (this.normal.dot(polygon.normal) > 0 ? coplanar_front : coplanar_back).push(polygon);
+                    } else {
+                        coplanar_front.push(polygon);
+                    }
+                } else if (classification === FRONT) {
+                    front.push(polygon);
+                } else if (classification === BACK) {
+                    back.push(polygon);
+                } else {
+                    const f = [], b = [];
+                    for (let i = 0; i < polygon.vertices.length; i++) {
+                        const j = (i + 1) % polygon.vertices.length;
+                        const vi = polygon.vertices[i];
+                        const vj = polygon.vertices[j];
+                        const ti = this.classifyVertex(vi);
+                        const tj = this.classifyVertex(vj);
+                        if (ti !== BACK) f.push(vi);
+                        if (ti !== FRONT) b.push(vi);
+                        if ((ti | tj) === SPANNING) {
+                            const denominator = this.normal.dot(vj.clone().subtract(vi));
+                            if (Math.abs(denominator) > EPSILON) {
+                                const t = (this.w - this.normal.dot(vi)) / denominator;
+                                if (t >= 0 && t <= 1) {
+                                    const v = vi.interpolate(vj, t);
+                                    f.push(v);
+                                    b.push(v);
+                                }
+                            }
+                        }
+                    }
+                    if (f.length >= 3) front.push(new ThreeBSP.Polygon(f));
+                    if (b.length >= 3) back.push(new ThreeBSP.Polygon(b));
+                }
+            };
+
+            ThreeBSP.Vertex = function(x, y, z, normal, uv) {
+                this.x = x; this.y = y; this.z = z;
+                this.normal = normal || new THREE.Vector3();
+                this.uv = uv || new THREE.Vector2();
+            };
+
+            ThreeBSP.Vertex.prototype.clone = function() {
+                return new ThreeBSP.Vertex(this.x, this.y, this.z, this.normal.clone(), this.uv.clone());
+            };
+
+            ThreeBSP.Vertex.prototype.subtract = function(vertex) {
+                this.x -= vertex.x; this.y -= vertex.y; this.z -= vertex.z;
+                return this;
+            };
+
+            ThreeBSP.Vertex.prototype.cross = function(vertex) {
+                const x = this.x, y = this.y, z = this.z;
+                this.x = y * vertex.z - z * vertex.y;
+                this.y = z * vertex.x - x * vertex.z;
+                this.z = x * vertex.y - y * vertex.x;
+                return this;
+            };
+
+            ThreeBSP.Vertex.prototype.dot = function(vertex) {
+                return this.x * vertex.x + this.y * vertex.y + this.z * vertex.z;
+            };
+
+            ThreeBSP.Vertex.prototype.normalize = function() {
+                const length = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+                if (length > 0) {
+                    this.x /= length; this.y /= length; this.z /= length;
+                }
+                return this;
+            };
+
+            ThreeBSP.Vertex.prototype.interpolate = function(other, t) {
+                const v = this.clone();
+                v.x += (other.x - this.x) * t;
+                v.y += (other.y - this.y) * t;
+                v.z += (other.z - this.z) * t;
+                v.normal.lerp(other.normal, t);
+                v.uv.lerp(other.uv, t);
+                return v;
+            };
+
+            ThreeBSP.Node = function(polygons) {
+                this.polygons = [];
+                this.front = this.back = undefined;
+                if (!polygons || polygons.length === 0) {
+                    this.divider = null;
+                    return;
+                }
+                this.divider = polygons[0].clone();
+                const front = [], back = [];
+                polygons.forEach(poly => this.divider.splitPolygon(poly, this.polygons, this.polygons, front, back));
+                if (front.length > 0) this.front = new ThreeBSP.Node(front);
+                if (back.length > 0) this.back = new ThreeBSP.Node(back);
+            };
+
+            ThreeBSP.Node.prototype.build = function(polygons) {
+                if (!polygons || polygons.length === 0) return;
+                if (!this.divider) this.divider = polygons[0].clone();
+                const front = [], back = [];
+                polygons.forEach(poly => this.divider.splitPolygon(poly, this.polygons, this.polygons, front, back));
+                if (front.length > 0) {
+                    if (!this.front) this.front = new ThreeBSP.Node();
+                    this.front.build(front);
+                }
+                if (back.length > 0) {
+                    if (!this.back) this.back = new ThreeBSP.Node();
+                    this.back.build(back);
+                }
+            };
+
+            ThreeBSP.Node.prototype.allPolygons = function() {
+                let polygons = this.polygons.slice();
+                if (this.front) polygons = polygons.concat(this.front.allPolygons());
+                if (this.back) polygons = polygons.concat(this.back.allPolygons());
+                return polygons;
+            };
+
+            ThreeBSP.Node.prototype.clone = function() {
+                const node = new ThreeBSP.Node();
+                node.divider = this.divider ? this.divider.clone() : null;
+                node.polygons = this.polygons.map(p => p.clone());
+                node.front = this.front ? this.front.clone() : null;
+                node.back = this.back ? this.back.clone() : null;
+                return node;
+            };
+
+            ThreeBSP.Node.prototype.invert = function() {
+                this.polygons.forEach(p => p.flip());
+                if (this.divider) this.divider.flip();
+                if (this.front) this.front.invert();
+                if (this.back) this.back.invert();
+                [this.front, this.back] = [this.back, this.front];
+                return this;
+            };
+
+            ThreeBSP.Node.prototype.clipPolygons = function(polygons) {
+                if (!this.divider) return polygons.slice();
+                let front = [], back = [];
+                polygons.forEach(poly => this.divider.splitPolygon(poly, front, back, front, back));
+                if (this.front) front = this.front.clipPolygons(front);
+                if (this.back) back = this.back.clipPolygons(back);
+                else back = [];
+                return front.concat(back);
+            };
+
+            ThreeBSP.Node.prototype.clipTo = function(node) {
+                this.polygons = node.clipPolygons(this.polygons);
+                if (this.front) this.front.clipTo(node);
+                if (this.back) this.back.clipTo(node);
+            };
+
+            return ThreeBSP;
+        })();
+
+        // Szene einrichten
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+        renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 5, 5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        const grid = new THREE.GridHelper(10, 10);
+        scene.add(grid);
+
+        camera.position.set(5, 5, 5);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const stlLoader = new THREE.STLLoader();
+        const objLoader = new THREE.OBJLoader();
+        const gltfLoader = new THREE.GLTFLoader();
+
+        let selectedObject = null;
+        let secondSelectedObject = null;
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function addShape(type) {
+            let geometry;
+            switch (type) {
+                case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
+                case 'sphere': geometry = new THREE.SphereGeometry(0.5, 32, 32); break;
+                case 'cylinder': geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32); break;
+            }
+            const material = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(0, 0.5, 0);
+            scene.add(mesh);
+            selectObject(mesh);
+        }
+
+        function importFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileName = file.name.toLowerCase();
+            const reader = new FileReader();
+
+            if (fileName.endsWith('.stl')) {
+                reader.onload = function(e) {
+                    const geometry = stlLoader.parse(e.target.result);
+                    const material = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(0, 0, 0);
+                    scene.add(mesh);
+                    selectObject(mesh);
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (fileName.endsWith('.obj')) {
+                reader.onload = function(e) {
+                    const object = objLoader.parse(e.target.result);
+                    normalizeObject(object);
+                    scene.add(object);
+                    selectObject(object.children[0] || object);
+                };
+                reader.readAsText(file);
+            } else if (fileName.endsWith('.gltf') || fileName.endsWith('.glb')) {
+                reader.onload = function(e) {
+                    gltfLoader.parse(e.target.result, '', (gltf) => {
+                        const object = gltf.scene;
+                        normalizeObject(object);
+                        scene.add(object);
+                        selectObject(object.children[0] || object);
+                    }, (error) => console.error('GLTF loading error:', error));
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            event.target.value = '';
+        }
+
+        function normalizeObject(object) {
+            object.traverse(child => {
+                if (child.isMesh && !child.material) {
+                    child.material = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+                }
+            });
+        }
+
+        function selectObject(object) {
+            if (selectedObject) {
+                selectedObject.traverse(child => {
+                    if (child.isMesh && child.material) child.material.emissive.set(0x000000);
+                });
+            }
+            selectedObject = object;
+            if (selectedObject) {
+                selectedObject.traverse(child => {
+                    if (child.isMesh && child.material) child.material.emissive.set(0x555555);
+                });
+                updateControls();
+            } else {
+                resetControls();
+            }
+        }
+
+        function selectSecondObject(object) {
+            if (secondSelectedObject) {
+                secondSelectedObject.traverse(child => {
+                    if (child.isMesh && child.material) child.material.emissive.set(0x000000);
+                });
+            }
+            secondSelectedObject = object;
+            if (secondSelectedObject) {
+                secondSelectedObject.traverse(child => {
+                    if (child.isMesh && child.material) child.material.emissive.set(0xaaaaaa);
+                });
+            }
+        }
+
+        function updateControls() {
+            if (!selectedObject) return;
+            document.getElementById('posX').value = selectedObject.position.x;
+            document.getElementById('posY').value = selectedObject.position.y;
+            document.getElementById('posZ').value = selectedObject.position.z;
+            document.getElementById('scale').value = selectedObject.scale.x;
+            document.getElementById('rotX').value = selectedObject.rotation.x;
+            document.getElementById('rotY').value = selectedObject.rotation.y;
+            document.getElementById('rotZ').value = selectedObject.rotation.z;
+            let firstMesh = null;
+            selectedObject.traverse(child => {
+                if (child.isMesh && child.material && !firstMesh) firstMesh = child;
+            });
+            if (firstMesh) document.getElementById('color').value = '#' + firstMesh.material.color.getHexString();
+        }
+
+        function updateSelected() {
+            if (!selectedObject) return;
+            selectedObject.position.set(
+                parseFloat(document.getElementById('posX').value) || 0,
+                parseFloat(document.getElementById('posY').value) || 0,
+                parseFloat(document.getElementById('posZ').value) || 0
+            );
+            const scale = parseFloat(document.getElementById('scale').value) || 1;
+            selectedObject.scale.set(scale, scale, scale);
+            selectedObject.rotation.set(
+                parseFloat(document.getElementById('rotX').value) || 0,
+                parseFloat(document.getElementById('rotY').value) || 0,
+                parseFloat(document.getElementById('rotZ').value) || 0
+            );
+            const color = document.getElementById('color').value;
+            selectedObject.traverse(child => {
+                if (child.isMesh && child.material) child.material.color.set(color);
+            });
+        }
+
+        function deleteSelected() {
+            if (selectedObject) {
+                scene.remove(selectedObject);
+                selectedObject = null;
+                resetControls();
+            }
+            if (secondSelectedObject) {
+                scene.remove(secondSelectedObject);
+                secondSelectedObject = null;
+            }
+        }
+
+        function resetControls() {
+            document.getElementById('posX').value = '';
+            document.getElementById('posY').value = '';
+            document.getElementById('posZ').value = '';
+            document.getElementById('scale').value = 1;
+            document.getElementById('rotX').value = '';
+            document.getElementById('rotY').value = '';
+            document.getElementById('rotZ').value = '';
+            document.getElementById('color').value = '#ffffff';
+        }
+
+        function exportSTL() {
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(scene);
+            downloadFile(result, 'hermanns_cad.stl', 'application/octet-stream');
+        }
+
+        function exportOBJ() {
+            const exporter = new THREE.OBJExporter();
+            const result = exporter.parse(scene);
+            downloadFile(result, 'hermanns_cad.obj', 'text/plain');
+        }
+
+        function downloadFile(content, fileName, mimeType) {
+            const a = document.createElement('a');
+            const blob = new Blob([content], { type: mimeType });
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+        }
+
+        function booleanOperation(type) {
+            if (!selectedObject || !secondSelectedObject) {
+                alert("Bitte wähle zwei Objekte aus!");
+                return;
+            }
+            if (!(selectedObject instanceof THREE.Mesh) || !(secondSelectedObject instanceof THREE.Mesh)) {
+                alert("Ausgewählte Objekte müssen Meshes sein!");
+                return;
+            }
+            if (!selectedObject.geometry || !secondSelectedObject.geometry) {
+                alert("Ein oder beide Objekte haben keine gültige Geometrie!");
+                return;
+            }
+
+            selectedObject.updateMatrixWorld();
+            secondSelectedObject.updateMatrixWorld();
+
+            try {
+                const bsp1 = new ThreeBSP(selectedObject);
+                const bsp2 = new ThreeBSP(secondSelectedObject);
+
+                let resultBSP;
+                switch (type) {
+                    case 'union':
+                        resultBSP = bsp1.union(bsp2);
+                        break;
+                    case 'subtract':
+                        resultBSP = bsp1.subtract(bsp2);
+                        break;
+                    case 'intersect':
+                        resultBSP = bsp1.intersect(bsp2);
+                        break;
+                }
+
+                const result = resultBSP.toMesh(selectedObject.matrixWorld.clone(), resultBSP.tree);
+                result.material = selectedObject.material.clone();
+                scene.remove(selectedObject);
+                scene.remove(secondSelectedObject);
+                scene.add(result);
+                selectObject(result);
+                secondSelectedObject = null;
+            } catch (e) {
+                console.error("Fehler bei der Boolean-Operation:", e);
+                alert("Ein Fehler ist bei der Boolean-Operation aufgetreten!");
+            }
+        }
+
+        renderer.domElement.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / (window.innerHeight * 0.8)) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj.parent && obj.parent.type !== 'Scene') obj = obj.parent;
+                selectObject(obj);
+            } else {
+                selectObject(null);
+            }
+        });
+
+        renderer.domElement.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / (window.innerHeight * 0.8)) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj.parent && obj.parent.type !== 'Scene') obj = obj.parent;
+                selectSecondObject(obj);
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / (window.innerHeight * 0.8);
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
+        });
+    </script>
+</body>
+</html>
