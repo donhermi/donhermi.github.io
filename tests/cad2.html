@@ -44,7 +44,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
 
     <script>
-        // Angepasste ThreeBSP-Implementierung
+        // Verbesserte ThreeBSP-Implementierung
         'use strict';
         window.ThreeBSP = (function() {
             var ThreeBSP,
@@ -54,158 +54,210 @@
                 BACK = 2,
                 SPANNING = 3;
 
-            ThreeBSP = function(mesh) {
+            ThreeBSP = function(mesh, meshIdentifier = "Unknown Mesh") {
                 if (!(mesh instanceof THREE.Mesh) || !mesh.geometry || !(mesh.geometry instanceof THREE.BufferGeometry)) {
-                    throw 'ThreeBSP: Input must be a Mesh with BufferGeometry';
+                    throw new Error(`ThreeBSP: Input (${meshIdentifier}) must be a Mesh with BufferGeometry`);
                 }
 
                 this.matrix = mesh.matrixWorld.clone();
-                this.geometry = mesh.geometry;
+                this.geometry = mesh.geometry.clone();
                 this.polygons = this.bufferGeometryToPolygons(this.geometry);
+
+                const validationResult = this.isValidMesh(mesh);
+                if (validationResult !== true) {
+                    console.warn(`ThreeBSP (${meshIdentifier}): ${validationResult}. Proceeding anyway.`);
+                }
+
                 this.tree = new ThreeBSP.Node(this.polygons);
+            };
+
+            ThreeBSP.prototype.isValidMesh = function(mesh) {
+                const geometry = mesh.geometry;
+                const positions = geometry.attributes.position?.array;
+                if (!positions || positions.length < 9) {
+                    return "Mesh hat keine gültigen Positionen oder weniger als 3 Vertices";
+                }
+                
+                const indices = geometry.index ? geometry.index.array : null;
+                const vertexCount = positions.length / 3;
+                const edges = new Map();
+                
+                for (let i = 0; i < (indices ? indices.length : vertexCount); i += 3) {
+                    const a = indices ? indices[i] : i;
+                    const b = indices ? indices[i + 1] : i + 1;
+                    const c = indices ? indices[i + 2] : i + 2;
+                    
+                    if (a >= vertexCount || b >= vertexCount || c >= vertexCount) {
+                        return `Ungültige Indices bei Dreieck ${i/3}: [${a}, ${b}, ${c}] überschreiten Vertex-Anzahl (${vertexCount})`;
+                    }
+
+                    const edge1 = `${Math.min(a,b)}-${Math.max(a,b)}`;
+                    const edge2 = `${Math.min(b,c)}-${Math.max(b,c)}`;
+                    const edge3 = `${Math.min(c,a)}-${Math.max(c,a)}`;
+                    
+                    edges.set(edge1, (edges.get(edge1) || 0) + 1);
+                    edges.set(edge2, (edges.get(edge2) || 0) + 1);
+                    edges.set(edge3, (edges.get(edge3) || 0) + 1);
+                }
+                
+                const edgeCounts = Array.from(edges.entries());
+                const invalidEdges = edgeCounts.filter(([_, count]) => count !== 2);
+                if (invalidEdges.length > 0) {
+                    const invalidEdgeCount = invalidEdges.length;
+                    const exampleEdges = invalidEdges.slice(0, 3).map(([edge, count]) => `${edge}: ${count}x`).join(", ");
+                    return `Mesh ist nicht wasserdicht: ${invalidEdgeCount} Kanten haben ungewöhnliche Verwendungen (Beispiele: ${exampleEdges})`;
+                }
+                
+                return true;
             };
 
             ThreeBSP.prototype.bufferGeometryToPolygons = function(geometry) {
                 const polygons = [];
                 const positions = geometry.attributes.position.array;
-                const normals = geometry.attributes.normal ? geometry.attributes.normal.array : null;
-                const uvs = geometry.attributes.uv ? geometry.attributes.uv.array : null;
-                const indices = geometry.index ? geometry.index.array : null;
+                const normals = geometry.attributes.normal?.array;
+                const indices = geometry.index?.array;
 
                 const vertexCount = positions.length / 3;
-                const vertices = [];
+                const vertices = new Map();
+
                 for (let i = 0; i < vertexCount; i++) {
                     const x = positions[i * 3];
                     const y = positions[i * 3 + 1];
                     const z = positions[i * 3 + 2];
-                    const normal = normals ? new THREE.Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]) : new THREE.Vector3();
-                    const uv = uvs ? new THREE.Vector2(uvs[i * 2], uvs[i * 2 + 1]) : new THREE.Vector2();
-                    vertices.push(new ThreeBSP.Vertex(x, y, z, normal, uv));
+                    const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                    
+                    if (!vertices.has(key)) {
+                        const normal = normals ? new THREE.Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]) : null;
+                        vertices.set(key, new ThreeBSP.Vertex(x, y, z, normal));
+                    }
                 }
+
+                const vertexArray = Array.from(vertices.values());
+                const vertexIndexMap = new Map(Array.from(vertices.keys()).map((k, i) => [k, i]));
 
                 if (indices) {
                     for (let i = 0; i < indices.length; i += 3) {
-                        const polyVertices = [
-                            vertices[indices[i]].clone(),
-                            vertices[indices[i + 1]].clone(),
-                            vertices[indices[i + 2]].clone()
-                        ];
-                        if (polyVertices.length === 3) {
-                            const poly = new ThreeBSP.Polygon(polyVertices);
-                            if (poly.normal && poly.normal.lengthSq() > 0) {
-                                polygons.push(poly);
-                            }
-                        }
+                        const poly = this.createPolygonFromIndices(indices, i, positions, vertexArray, vertexIndexMap);
+                        if (poly) polygons.push(poly);
                     }
                 } else {
                     for (let i = 0; i < vertexCount; i += 3) {
-                        const polyVertices = [
-                            vertices[i].clone(),
-                            vertices[i + 1].clone(),
-                            vertices[i + 2].clone()
-                        ];
-                        if (polyVertices.length === 3) {
-                            const poly = new ThreeBSP.Polygon(polyVertices);
-                            if (poly.normal && poly.normal.lengthSq() > 0) {
-                                polygons.push(poly);
-                            }
-                        }
+                        const poly = this.createPolygonFromIndices(null, i, positions, vertexArray, vertexIndexMap);
+                        if (poly) polygons.push(poly);
                     }
                 }
 
+                console.log(`Converted ${polygons.length} polygons from geometry`);
                 return polygons;
             };
 
+            ThreeBSP.prototype.createPolygonFromIndices = function(indices, start, positions, vertexArray, vertexIndexMap) {
+                const idx = indices ? [indices[start], indices[start + 1], indices[start + 2]] : [start, start + 1, start + 2];
+                if (idx[2] >= positions.length / 3) return null;
+
+                const keys = idx.map(i => {
+                    const x = positions[i * 3];
+                    const y = positions[i * 3 + 1];
+                    const z = positions[i * 3 + 2];
+                    return `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                });
+
+                const verts = keys.map(k => vertexArray[vertexIndexMap.get(k)]?.clone());
+                if (!verts.every(v => v)) return null;
+                
+                const poly = new ThreeBSP.Polygon(verts);
+                return (poly.normal && poly.normal.lengthSq() > EPSILON) ? poly : null;
+            };
+
             ThreeBSP.prototype.subtract = function(other) {
-                var a = this.tree.clone(), b = other.tree.clone();
-                a.invert(); a.clipTo(b); b.clipTo(a); b.invert(); b.clipTo(a); b.invert();
-                a.build(b.allPolygons()); a.invert();
-                const resultMesh = this.toMesh(this.matrix, a);
-                const result = new ThreeBSP(resultMesh);
-                result.matrix = this.matrix.clone();
-                return result;
+                const a = this.tree.clone(), b = other.tree.clone();
+                a.invert();
+                a.clipTo(b);
+                b.clipTo(a);
+                b.invert();
+                b.clipTo(a);
+                b.invert();
+                a.build(b.allPolygons());
+                a.invert();
+                return this.finalizeOperation(a);
             };
 
             ThreeBSP.prototype.union = function(other) {
-                var a = this.tree.clone(), b = other.tree.clone();
-                a.clipTo(b); b.clipTo(a); b.invert(); b.clipTo(a); b.invert();
+                const a = this.tree.clone(), b = other.tree.clone();
+                a.clipTo(b);
+                b.clipTo(a);
+                b.invert();
+                b.clipTo(a);
+                b.invert();
                 a.build(b.allPolygons());
-                const resultMesh = this.toMesh(this.matrix, a);
-                const result = new ThreeBSP(resultMesh);
-                result.matrix = this.matrix.clone();
-                return result;
+                return this.finalizeOperation(a);
             };
 
             ThreeBSP.prototype.intersect = function(other) {
-                var a = this.tree.clone(), b = other.tree.clone();
-                a.invert(); b.clipTo(a); b.invert(); a.clipTo(b); b.clipTo(a);
-                a.build(b.allPolygons()); a.invert();
-                const resultMesh = this.toMesh(this.matrix, a);
+                const a = this.tree.clone(), b = other.tree.clone();
+                a.invert();
+                b.clipTo(a);
+                b.invert();
+                a.clipTo(b);
+                b.clipTo(a);
+                a.build(b.allPolygons());
+                a.invert();
+                return this.finalizeOperation(a);
+            };
+
+            ThreeBSP.prototype.finalizeOperation = function(tree) {
+                const resultMesh = this.toMesh(this.matrix, tree);
+                if (!resultMesh) return null;
                 const result = new ThreeBSP(resultMesh);
                 result.matrix = this.matrix.clone();
                 return result;
             };
 
             ThreeBSP.prototype.toMesh = function(matrix, node) {
-                const polygons = node ? node.allPolygons() : this.tree.allPolygons();
+                const polygons = node.allPolygons();
+                console.log(`Resulting mesh has ${polygons.length} polygons`);
+                if (polygons.length === 0) {
+                    console.warn("Resulting geometry is empty after Boolean operation");
+                    return null;
+                }
+
                 const geometry = new THREE.BufferGeometry();
                 const positions = [];
                 const normals = [];
-                const uvs = [];
                 const indices = [];
-
                 const vertexMap = new Map();
 
-                polygons.forEach((polygon, polyIndex) => {
+                polygons.forEach((polygon) => {
                     const vertices = polygon.vertices;
+                    if (vertices.length < 3) return;
+
+                    const baseIdx = positions.length / 3;
+                    vertices.forEach(v => {
+                        const key = `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+                        if (!vertexMap.has(key)) {
+                            vertexMap.set(key, positions.length / 3);
+                            positions.push(v.x, v.y, v.z);
+                            normals.push(v.normal.x, v.normal.y, v.normal.z);
+                        }
+                    });
+
                     for (let i = 2; i < vertices.length; i++) {
-                        const v0 = vertices[0];
-                        const v1 = vertices[i - 1];
-                        const v2 = vertices[i];
-
-                        const key0 = `${v0.x},${v0.y},${v0.z}`;
-                        const key1 = `${v1.x},${v1.y},${v1.z}`;
-                        const key2 = `${v2.x},${v2.y},${v2.z}`;
-
-                        let idx0 = vertexMap.get(key0);
-                        let idx1 = vertexMap.get(key1);
-                        let idx2 = vertexMap.get(key2);
-
-                        if (idx0 === undefined) {
-                            idx0 = positions.length / 3;
-                            vertexMap.set(key0, idx0);
-                            positions.push(v0.x, v0.y, v0.z);
-                            normals.push(v0.normal.x, v0.normal.y, v0.normal.z);
-                            uvs.push(v0.uv.x, v0.uv.y);
-                        }
-                        if (idx1 === undefined) {
-                            idx1 = positions.length / 3;
-                            vertexMap.set(key1, idx1);
-                            positions.push(v1.x, v1.y, v1.z);
-                            normals.push(v1.normal.x, v1.normal.y, v1.normal.z);
-                            uvs.push(v1.uv.x, v1.uv.y);
-                        }
-                        if (idx2 === undefined) {
-                            idx2 = positions.length / 3;
-                            vertexMap.set(key2, idx2);
-                            positions.push(v2.x, v2.y, v2.z);
-                            normals.push(v2.normal.x, v2.normal.y, v2.normal.z);
-                            uvs.push(v2.uv.x, v2.uv.y);
-                        }
-
-                        indices.push(idx0, idx1, idx2);
+                        const v0 = vertexMap.get(`${vertices[0].x.toFixed(6)},${vertices[0].y.toFixed(6)},${vertices[0].z.toFixed(6)}`);
+                        const v1 = vertexMap.get(`${vertices[i-1].x.toFixed(6)},${vertices[i-1].y.toFixed(6)},${vertices[i-1].z.toFixed(6)}`);
+                        const v2 = vertexMap.get(`${vertices[i].x.toFixed(6)},${vertices[i].y.toFixed(6)},${vertices[i].z.toFixed(6)}`);
+                        indices.push(v0, v1, v2);
                     }
                 });
 
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
                 geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-                geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
                 geometry.setIndex(indices);
                 geometry.computeVertexNormals();
 
-                const mesh = new THREE.Mesh(geometry);
-                const effectiveMatrix = matrix instanceof THREE.Matrix4 ? matrix : new THREE.Matrix4();
-                mesh.applyMatrix4(effectiveMatrix);
+                // Nachbearbeitung: Vertices mergen
+                const mergedGeometry = mergeVertices(geometry);
+                const mesh = new THREE.Mesh(mergedGeometry);
+                mesh.applyMatrix4(matrix);
                 return mesh;
             };
 
@@ -437,6 +489,53 @@
             return ThreeBSP;
         })();
 
+        // Neue Funktion zum Mergen von Vertices
+        function mergeVertices(geometry) {
+            const positions = geometry.attributes.position.array;
+            const indices = geometry.index ? geometry.index.array : null;
+            const vertexMap = new Map();
+            const newPositions = [];
+            const newIndices = [];
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const y = positions[i + 1];
+                const z = positions[i + 2];
+                const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                
+                if (!vertexMap.has(key)) {
+                    vertexMap.set(key, newPositions.length / 3);
+                    newPositions.push(x, y, z);
+                }
+            }
+
+            if (indices) {
+                for (let i = 0; i < indices.length; i++) {
+                    const oldIndex = indices[i];
+                    const x = positions[oldIndex * 3];
+                    const y = positions[oldIndex * 3 + 1];
+                    const z = positions[oldIndex * 3 + 2];
+                    const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                    newIndices.push(vertexMap.get(key));
+                }
+            } else {
+                for (let i = 0; i < positions.length / 3; i++) {
+                    const x = positions[i * 3];
+                    const y = positions[i * 3 + 1];
+                    const z = positions[i * 3 + 2];
+                    const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                    newIndices.push(vertexMap.get(key));
+                }
+            }
+
+            const newGeometry = new THREE.BufferGeometry();
+            newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
+            newGeometry.setIndex(new THREE.Uint32BufferAttribute(newIndices, 1));
+            newGeometry.computeVertexNormals();
+
+            return newGeometry;
+        }
+
         // Szene einrichten
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -653,9 +752,18 @@
             selectedObject.updateMatrixWorld();
             secondSelectedObject.updateMatrixWorld();
 
+            console.log(`Position des ersten Objekts: (${selectedObject.position.x}, ${selectedObject.position.y}, ${selectedObject.position.z})`);
+            console.log(`Position des zweiten Objekts: (${secondSelectedObject.position.x}, ${secondSelectedObject.position.y}, ${secondSelectedObject.position.z})`);
+
             try {
-                const bsp1 = new ThreeBSP(selectedObject);
-                const bsp2 = new ThreeBSP(secondSelectedObject);
+                selectedObject.geometry = new THREE.BufferGeometry().copy(selectedObject.geometry);
+                secondSelectedObject.geometry = new THREE.BufferGeometry().copy(secondSelectedObject.geometry);
+                
+                selectedObject.geometry = mergeVertices(selectedObject.geometry);
+                secondSelectedObject.geometry = mergeVertices(secondSelectedObject.geometry);
+
+                const bsp1 = new ThreeBSP(selectedObject, "Erstes ausgewähltes Objekt (Linksklick)");
+                const bsp2 = new ThreeBSP(secondSelectedObject, "Zweites ausgewähltes Objekt (Rechtsklick)");
 
                 let resultBSP;
                 switch (type) {
@@ -670,16 +778,28 @@
                         break;
                 }
 
+                if (!resultBSP) {
+                    alert(`Boolean-Operation (${type}) ergab keine gültige Geometrie. Objekte bleiben erhalten.`);
+                    return;
+                }
+
                 const result = resultBSP.toMesh(selectedObject.matrixWorld.clone(), resultBSP.tree);
+                if (!result) {
+                    alert(`Boolean-Operation (${type}) ergab keine Geometrie. Objekte bleiben erhalten. Überprüfe die Positionen und Überschneidungen.`);
+                    return;
+                }
+
                 result.material = selectedObject.material.clone();
+                
                 scene.remove(selectedObject);
                 scene.remove(secondSelectedObject);
                 scene.add(result);
+                
                 selectObject(result);
                 secondSelectedObject = null;
             } catch (e) {
-                console.error("Fehler bei der Boolean-Operation:", e);
-                alert("Ein Fehler ist bei der Boolean-Operation aufgetreten!");
+                console.error(`Fehler bei der Boolean-Operation (${type}):`, e);
+                alert(`Boolean-Operation (${type}) fehlgeschlagen: ${e.message}`);
             }
         }
 
