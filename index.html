@@ -3,104 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>donhermi – ESP32, KI, Bluetooth, Spiele & verrückte Experimente</title>
-  <meta name="description" content="ESP32-Projekte mit KI und Bluetooth, Blockly-Programmierung, Browser-Spiele wie PopO, Strategie und lustige Tests.">
+  <title>donhermi – ESP32, KI, Spiele & Experimente</title>
+  <meta name="description" content="Alle meine ESP32-, KI-, Bluetooth-, Blockly- und Browser-Spiel-Projekte übersichtlich sortiert.">
   <style>
-    :root {
-      --primary: #0d6efd;
-      --dark: #0f172a;
-      --light: #f8fafc;
-      --gray: #64748b;
-    }
+    :root { --primary: #0d6efd; --dark: #0f172a; }
     body {
-      margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0; font-family: system-ui, sans-serif;
       background: linear-gradient(to bottom, #0f172a, #1e293b);
-      color: #e2e8f0;
-      line-height: 1.6;
+      color: #e2e8f0; line-height: 1.6;
     }
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
-    header {
-      text-align: center;
-      padding: 4.5rem 0 3rem;
-    }
-    h1 {
-      font-size: 3.5rem;
-      margin: 0;
-      color: #60a5fa;
-      text-shadow: 0 4px 14px rgba(0,0,0,0.6);
-    }
-    .tagline {
-      font-size: 1.45rem;
-      color: #94a3b8;
-      margin: 1rem 0 3rem;
-    }
-    .section {
-      margin: 3.5rem 0;
-      padding: 2rem;
-      background: rgba(30, 41, 59, 0.65);
-      border-radius: 16px;
-      border: 1px solid rgba(100, 116, 139, 0.35);
-      backdrop-filter: blur(8px);
-    }
-    h2 {
-      color: #60a5fa;
-      border-bottom: 2px solid #334155;
-      padding-bottom: 0.7rem;
-      margin-top: 0;
-    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    header { text-align: center; padding: 5rem 0 3rem; }
+    h1 { font-size: 3.6rem; margin: 0; color: #60a5fa; text-shadow: 0 4px 14px rgba(0,0,0,0.6); }
+    .tagline { font-size: 1.5rem; color: #94a3b8; margin: 1rem 0 3rem; }
+    .section { margin: 4rem 0; padding: 2.5rem; background: rgba(30,41,59,0.7); border-radius: 16px; border: 1px solid rgba(100,116,139,0.4); }
+    h2 { color: #60a5fa; border-bottom: 2px solid #334155; padding-bottom: 0.8rem; }
     .project-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.6rem;
-      margin-top: 2rem;
+      gap: 1.8rem;
+      margin-top: 1.8rem;
     }
     .card {
-      background: #1e293b;
-      padding: 1.6rem;
-      border-radius: 12px;
-      transition: all 0.3s ease;
-      border: 1px solid #334155;
+      background: #1e293b; padding: 1.8rem; border-radius: 14px;
+      transition: all 0.3s ease; border: 1px solid #334155;
     }
-    .card:hover {
-      transform: translateY(-8px);
-      border-color: #60a5fa;
-      box-shadow: 0 16px 32px rgba(0,0,0,0.45);
-    }
-    .card h3 {
-      margin: 0 0 0.9rem;
-      color: #93c5fd;
-      font-size: 1.4rem;
-    }
-    .card p {
-      margin: 0 0 1.2rem;
-      color: #cbd5e1;
-      font-size: 0.97rem;
-    }
+    .card:hover { transform: translateY(-10px); border-color: #60a5fa; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    .card h3 { margin: 0 0 1rem; color: #93c5fd; font-size: 1.45rem; }
+    .card p { margin: 0 0 1.4rem; color: #cbd5e1; }
     .btn {
-      display: inline-block;
-      background: var(--primary);
-      color: white;
-      padding: 0.7rem 1.5rem;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: 600;
-      transition: background 0.25s;
+      background: var(--primary); color: white; padding: 0.75rem 1.6rem;
+      border-radius: 8px; text-decoration: none; font-weight: 600;
     }
-    .btn:hover {
-      background: #2563eb;
-    }
-    footer {
-      text-align: center;
-      padding: 4rem 0 2.5rem;
-      color: #64748b;
-      font-size: 0.95rem;
-    }
-    a { color: #60a5fa; }
+    .btn:hover { background: #2563eb; }
+    footer { text-align: center; padding: 4rem 0 2rem; color: #64748b; }
   </style>
 </head>
 <body>
@@ -108,7 +44,7 @@
   <header>
     <div class="container">
       <h1>donhermi</h1>
-      <p class="tagline">ESP32 × KI × Bluetooth × Blockly × Browser-Spiele × wilde Experimente</p>
+      <p class="tagline">ESP32 × KI × Bluetooth × Blockly × Browser-Spiele × verrückte Experimente</p>
     </div>
   </header>
 
@@ -116,72 +52,105 @@
 
     <div class="section">
       <h2>Was du hier findest</h2>
-      <p>Meine kleinen und größeren Spielereien: Mikrocontroller mit KI und Bluetooth, visuelle Programmierung, lustige Browser-Games und random Tests, die Spaß machen oder irgendwas beweisen sollen.</p>
+      <p>Alle meine aktuellen Projekte – sauber sortiert in Kategorien. Von ESP32 mit KI bis zu lustigen Browser-Spielen und Experimenten.</p>
     </div>
 
+    <!-- ====================== KATEGORIE 1 ====================== -->
     <div class="section">
-      <h2>Meine Projekte</h2>
+      <h2>ESP32, KI &amp; Bluetooth</h2>
       <div class="project-grid">
-
         <div class="card">
           <h3>ESP32 mit KI</h3>
-          <p>ESP32 kommuniziert mit KI-Modellen, verarbeitet Sensordaten und reagiert schlau – plus BLE UART auf allen GPIOs.</p>
-          <a href="/ki" class="btn">Mehr dazu →</a>
+          <p>KI-Modelle, Sensoren, BLE UART auf allen GPIOs – intelligente Mini-Projekte.</p>
+          <a href="/ki" class="btn">Zum Projekt →</a>
         </div>
-
+        <div class="card">
+          <h3>KI Version 2</h3>
+          <p>Die nächste Generation der ESP32-KI-Experimente.</p>
+          <a href="/ki2" class="btn">KI 2 starten →</a>
+        </div>
         <div class="card">
           <h3>Blockly + Bluetooth</h3>
-          <p>ESP32 einfach per Drag-and-Drop (Blockly) programmieren und live über Bluetooth vom Browser oder Handy steuern.</p>
+          <p>Drag-and-Drop-Programmierung + Live-Steuerung per Browser/Handy.</p>
           <a href="/blockly" class="btn">Blockly ausprobieren →</a>
         </div>
-
-        <div class="card">
-          <h3>PopO</h3>
-          <p>Ein schnelles, süchtig machendes Browser-Minispiel –  Punkte sammeln, Highscore jagen.</p>
-          <a href="/popo" class="btn">PopO spielen →</a>
-        </div>
-
-        <div class="card">
-          <h3>Strategie</h3>
-          <p>Klassisches Strategiespiel im Browser – Planen, Taktik, Gegner überlisten (Version 1).</p>
-          <a href="/Strategie" class="btn">Strategie starten →</a>
-        </div>
-
-        <div class="card">
-          <h3>Strategie 2</h3>
-          <p>Verbesserte Version des Strategiespiels – mehr Features, bessere KI oder neue Regeln?</p>
-          <a href="/Strategie2" class="btn">Strategie 2 spielen →</a>
-        </div>
-
-        <div class="card">
-          <h3>Block-Spiele / Tests</h3>
-          <p>Sammlung kleiner Browser-Spiele oder Prototypen – einfach mal ausprobieren, was so geht.</p>
-          <a href="/block" class="btn">Block anschauen →</a>
-        </div>
-
-        <div class="card">
-          <h3>ELW Test</h3>
-          <p>Strategiespiel mit Elementen </p>
-          <a href="/tests/elw" class="btn">ELW ausprobieren →</a>
-        </div>
-
       </div>
     </div>
 
-    <div class="section" style="text-align:center; margin:4.5rem 0 2rem;">
-      <h2>Mitmachen? Feedback? Ideen?</h2>
-      <p>Schreib mir gerne ein Issue, fork das Repo oder sag einfach Hallo.</p>
-      <p style="margin-top:2.2rem;">
-        <a href="https://github.com/donhermi" class="btn" style="background:#333; font-size:1.15rem; padding:0.9rem 2rem;">
-          → GitHub Profil besuchen
-        </a>
-      </p>
+    <!-- ====================== KATEGORIE 2 ====================== -->
+    <div class="section">
+      <h2>Browser-Spiele &amp; Minigames</h2>
+      <div class="project-grid">
+        <div class="card">
+          <h3>PopO</h3>
+          <p>Süchtigmachendes Pop-Spiel – Highscore jagen!</p>
+          <a href="/popo" class="btn">PopO spielen →</a>
+        </div>
+        <div class="card">
+          <h3>PopO 2</h3>
+          <p>Die verbesserte, noch bessere Version von PopO.</p>
+          <a href="/popo2" class="btn">PopO 2 starten →</a>
+        </div>
+        <div class="card">
+          <h3>Strategie</h3>
+          <p>Klassisches Strategiespiel – Taktik und Planung.</p>
+          <a href="/Strategie" class="btn">Strategie starten →</a>
+        </div>
+        <div class="card">
+          <h3>Strategie 2</h3>
+          <p>Die weiterentwickelte Version mit neuen Features.</p>
+          <a href="/strategie2" class="btn">Strategie 2 spielen →</a>
+        </div>
+        <div class="card">
+          <h3>Block-Spiele</h3>
+          <p>Sammlung kleiner Prototypen und Tests.</p>
+          <a href="/block" class="btn">Block anschauen →</a>
+        </div>
+        <div class="card">
+          <h3>ELW Test</h3>
+          <p>Strategie-Experiment mit besonderen Elementen.</p>
+          <a href="/tests/elw" class="btn">ELW ausprobieren →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================== KATEGORIE 3 ====================== -->
+    <div class="section">
+      <h2>Weitere Experimente</h2>
+      <div class="project-grid">
+        <div class="card">
+          <h3>Martina</h3>
+          <p>Spezielles Projekt „Martina“ – was genau ist das? (Beschreibung ergänzen)</p>
+          <a href="/martina" class="btn">Martina öffnen →</a>
+        </div>
+        <div class="card">
+          <h3>Raspberry Pi</h3>
+          <p>Experimente und Projekte mit dem RPi.</p>
+          <a href="/rpi" class="btn">RPi-Projekte →</a>
+        </div>
+        <div class="card">
+          <h3>Allgemeine Projekte</h3>
+          <p>Verschiedene Prototypen und Ideen.</p>
+          <a href="/project" class="btn">Zum Projekt-Ordner →</a>
+        </div>
+        <div class="card">
+          <h3>Runen-Tool</h3>
+          <p>Das coole Runen-Tool (runen.html).</p>
+          <a href="/runen.html" class="btn">Runen starten →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="text-align:center;">
+      <h2>Hand Tracking fehlt noch?</h2>
+      <p>Schick mir einfach den Ordner oder die Dateien – in 2 Minuten ist alles hübsch integriert und sortiert! 🚀</p>
+      <a href="https://github.com/donhermi/donhermi.github.io" class="btn" style="background:#333; font-size:1.2rem; padding:1rem 2.5rem;">GitHub Repo öffnen</a>
     </div>
 
   </div>
 
   <footer>
-    <p>donhermi.github.io  –  Bastelspaß, KI-Spielereien & Browser-Games • 2024–2026</p>
+    <p>donhermi.github.io • Alle Projekte sauber sortiert • Februar 2026</p>
   </footer>
 
 </body>
