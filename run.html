@@ -1,79 +1,88 @@
-Verstanden, „ch“ ist drin. Das ist besonders für das Deutsche wichtig, da wir es ständig benutzen.
-Ich habe die Logik jetzt so verfeinert, dass sie Prioritäten setzt: Erst wird nach „sch“ gesucht, dann nach „ch“ und „ng“. Das verhindert, dass das „ch“ innerhalb eines „sch“ falsch erkannt wird.
-Hier ist der finale, „Sack-gang-freie“ JavaScript-Teil für dein Projekt:
-const maps = {
-    runes: {
-        'sch': 'ᛊᚲᚺ', 'ch': 'ᚲᚺ', 'ng': 'ᛜ', 'ä': 'ᛖ', 'ö': 'ᛟ', 'ü': 'ᚢ',
-        'a': 'ᚨ', 'b': 'ᛒ', 'c': 'ᚲ', 'd': 'ᛞ', 'e': 'ᛖ', 'f': 'ᚠ', 'g': 'ᚷ', 
-        'h': 'ᚺ', 'i': 'ᛁ', 'j': 'ᛃ', 'k': 'ᚲ', 'l': 'ᛚ', 'm': 'ᛗ', 'n': 'ᚾ', 
-        'o': 'ᛟ', 'p': 'ᛈ', 'q': 'ᚲ', 'r': 'ᚱ', 's': 'ᛊ', 't': 'ᛏ', 'u': 'ᚢ', 
-        'v': 'ᚠ', 'w': 'ᚹ', 'x': 'ᚲᛊ', 'y': 'ᛁ', 'z': 'ᛉ', ' ': ' '
-    },
-    hebrew: {
-        'sch': 'שׁ', 'ch': 'ח', 'ng': 'נְג', 'ä': 'ע', 'ö': 'ו', 'ü': 'ו',
-        'a': 'א', 'b': 'ב', 'c': 'כ', 'd': 'ד', 'e': 'ע', 'f': 'פ', 'g': 'ג', 
-        'h': 'ה', 'i': 'י', 'j': 'י', 'k': 'כ', 'l': 'ל', 'm': 'מ', 'n': 'נ', 
-        'o': 'ו', 'p': 'פ', 'r': 'ר', 's': 'ס', 't': 'ת', 'u': 'ו', 'v': 'ו', 
-        'w': 'ו', 'x': 'כס', 'z': 'ז', ' ': ' '
-    },
-    arabic: {
-        'sch': 'ش', 'ch': 'خ', 'ng': 'نج', 'ä': 'ا', 'ö': 'و', 'ü': 'و',
-        'a': 'ا', 'b': 'ب', 'c': 'ك', 'd': 'د', 'e': 'ي', 'f': 'ف', 'g': 'ج', 
-        'h': 'ه', 'i': 'ي', 'j': 'ج', 'k': 'ك', 'l': 'ل', 'm': 'م', 'n': 'ن', 
-        'o': 'و', 'p': 'ب', 'r': 'ر', 's': 'س', 't': 'ت', 'u': 'و', 'v': 'ف', 
-        'w': 'و', 'x': 'كس', 'z': 'ز', ' ': ' '
-    },
-    cyrillic: {
-        'sch': 'ш', 'ch': 'х', 'ng': 'нг', 'ä': 'э', 'ö': 'ё', 'ü': 'ю',
-        'a': 'а', 'b': 'б', 'c': 'ц', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г', 
-        'h': 'х', 'i': 'и', 'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 
-        'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'v': 'в', 
-        'w': 'в', 'x': 'кс', 'z': 'з', ' ': ' '
-    }
-};
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Konverter | donhermi</title>
+    <style>
+        :root { --bg: #121212; --stone: #1e1e1e; --accent: #d4af37; --text: #eee; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { max-width: 700px; width: 100%; background: var(--stone); padding: 25px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.7); border: 1px solid #333; }
+        h1 { text-align: center; color: var(--accent); margin-bottom: 20px; }
+        select, textarea { width: 100%; background: #252525; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 6px; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; }
+        .output-box { background: #111; padding: 20px; border-radius: 6px; border-left: 4px solid var(--accent); min-height: 80px; }
+        #result { font-size: 26px; word-wrap: break-word; line-height: 1.6; color: var(--accent); }
+        .rtl { direction: rtl; text-align: right; }
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
 
-function translate() {
-    const mode = modeSelect.value;
-    let text = input.value.toLowerCase();
-    const map = maps[mode];
+<div class="container">
+    <h1>Phonetischer Übersetzer</h1>
+    <select id="mode">
+        <option value="runes">Runen (Futhark)</option>
+        <option value="hebrew">Hebräisch (Phonetisch)</option>
+        <option value="arabic">Arabisch (Phonetisch)</option>
+        <option value="cyrillic">Kyrillisch</option>
+    </select>
+    <textarea id="input" placeholder="Tippe hier... (z.B. Schach, Ring, Max)"></textarea>
+    <div class="output-box" id="outputBox">
+        <div id="result">...</div>
+    </div>
+    <button class="btn" onclick="copyText()">Ergebnis kopieren</button>
+</div>
 
-    // WICHTIG: Die Reihenfolge bestimmt die Priorität (erst sch, dann ch)
-    const combos = ['sch', 'ch', 'ng'];
-    
-    // Platzhalter-Mapping, um bereits ersetzte Kombis zu schützen
-    let tempResult = text;
-    let placeholders = [];
+<script>
+    const maps = {
+        runes: {'sch': 'ᛊᚲᚺ', 'ch': 'ᚲᚺ', 'ng': 'ᛜ', 'ä': 'ᛖ', 'ö': 'ᛟ', 'ü': 'ᚢ', 'a': 'ᚨ', 'b': 'ᛒ', 'c': 'ᚲ', 'd': 'ᛞ', 'e': 'ᛖ', 'f': 'ᚠ', 'g': 'ᚷ', 'h': 'ᚺ', 'i': 'ᛁ', 'j': 'ᛃ', 'k': 'ᚲ', 'l': 'ᛚ', 'm': 'ᛗ', 'n': 'ᚾ', 'o': 'ᛟ', 'p': 'ᛈ', 'q': 'ᚲ', 'r': 'ᚱ', 's': 'ᛊ', 't': 'ᛏ', 'u': 'ᚢ', 'v': 'ᚠ', 'w': 'ᚹ', 'x': 'ᚲᛊ', 'y': 'ᛁ', 'z': 'ᛉ', ' ': ' '},
+        hebrew: {'sch': 'שׁ', 'ch': 'ח', 'ng': 'נְג', 'ä': 'ע', 'ö': 'ו', 'ü': 'ו', 'a': 'א', 'b': 'ב', 'c': 'כ', 'd': 'ד', 'e': 'ע', 'f': 'פ', 'g': 'ג', 'h': 'ה', 'i': 'י', 'j': 'י', 'k': 'כ', 'l': 'ל', 'm': 'מ', 'n': 'נ', 'o': 'ו', 'p': 'פ', 'r': 'ר', 's': 'ס', 't': 'ת', 'u': 'ו', 'v': 'ו', 'w': 'ו', 'x': 'כס', 'z': 'ז', ' ': ' '},
+        arabic: {'sch': 'ش', 'ch': 'خ', 'ng': 'نج', 'ä': 'ا', 'ö': 'و', 'ü': 'و', 'a': 'ا', 'b': 'ب', 'c': 'ك', 'd': 'د', 'e': 'ي', 'f': 'ف', 'g': 'ج', 'h': 'ه', 'i': 'ي', 'j': 'ج', 'k': 'ك', 'l': 'ل', 'm': 'م', 'n': 'ن', 'o': 'و', 'p': 'ب', 'r': 'ر', 's': 'س', 't': 'ت', 'u': 'و', 'v': 'ف', 'w': 'و', 'x': 'كس', 'z': 'ز', ' ': ' '},
+        cyrillic: {'sch': 'ш', 'ch': 'х', 'ng': 'нг', 'ä': 'э', 'ö': 'ё', 'ü': 'ю', 'a': 'а', 'b': 'б', 'c': 'ц', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г', 'h': 'х', 'i': 'и', 'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'v': 'в', 'w': 'в', 'x': 'кс', 'z': 'з', ' ': ' '}
+    };
 
-    combos.forEach((combo, index) => {
-        if (map[combo]) {
-            const regex = new RegExp(combo, 'g');
-            const p-holder = `__${index}__`;
-            placeholders[index] = map[combo];
-            tempResult = tempResult.replace(regex, p-holder);
+    const input = document.getElementById('input');
+    const resultDiv = document.getElementById('result');
+    const modeSelect = document.getElementById('mode');
+    const outputBox = document.getElementById('outputBox');
+
+    function translate() {
+        const mode = modeSelect.value;
+        let text = input.value.toLowerCase();
+        const map = maps[mode];
+        
+        if (mode === 'arabic' || mode === 'hebrew') outputBox.classList.add('rtl');
+        else outputBox.classList.remove('rtl');
+
+        let tempResult = text;
+        const combos = ['sch', 'ch', 'ng'];
+        let replacements = {};
+
+        combos.forEach((combo, i) => {
+            if (map[combo]) {
+                const placeholder = `##${i}##`;
+                replacements[placeholder] = map[combo];
+                tempResult = tempResult.split(combo).join(placeholder);
+            }
+        });
+
+        let final = "";
+        for (let i = 0; i < tempResult.length; i++) {
+            if (tempResult.substring(i, i+2) === '##') {
+                const end = tempResult.indexOf('##', i+2);
+                const key = tempResult.substring(i, end+2);
+                final += replacements[key];
+                i = end + 1;
+            } else {
+                final += map[tempResult[i]] || tempResult[i];
+            }
         }
-    });
-
-    let finalResult = '';
-    // Jetzt einzelne Zeichen ersetzen, aber Platzhalter ignorieren
-    for (let i = 0; i < tempResult.length; i++) {
-        // Prüfen ob wir auf einen Platzhalter stoßen
-        if (tempResult.substring(i, i+2) === '__') {
-            const endIdx = tempResult.indexOf('__', i + 2);
-            const pIndex = tempResult.substring(i + 2, endIdx);
-            finalResult += placeholders[pIndex];
-            i = endIdx + 1;
-        } else {
-            const char = tempResult[i];
-            finalResult += map[char] || char;
-        }
+        resultDiv.textContent = final || '...';
     }
 
-    resultDiv.textContent = finalResult || '...';
-}
-
-Die Highlights der neuen Logik:
- * Das "sch vs ch" Problem: Ein Wort wie „Schach“ wird jetzt korrekt als sch + a + ch erkannt, statt das ch fälschlicherweise doppelt zu verarbeiten.
- * Hebräisch/Arabisch "ch": Hier wird jetzt das kehlig ausgesprochene Chet (ח) bzw. Cha (خ) genutzt, was phonetisch viel geiler ist als nur ein einfaches "k" oder "h".
- * Stabilität: Durch die Platzhalter-Methode im Code verheddert sich das Script nicht mehr, wenn ein Sonderzeichen Teil eines anderen Zeichens ist.
-Sollte jetzt alles flüssig laufen. Wenn du das auf deiner Seite live hast, sag Bescheid – ich schau es mir gerne nochmal im Browser an!
-Soll ich dir noch ein passendes Hintergrundbild-CSS (z. B. ein subtiles Pergament-Muster) generieren?
+    input.addEventListener('input', translate);
+    modeSelect.addEventListener('change', translate);
+    function copyText() { navigator.clipboard.writeText(resultDiv.textContent); alert("Kopiert!"); }
+</script>
+</body>
+</html>
